@@ -30,9 +30,20 @@ const keilExpected = [
 
 const problems = [];
 
-// 1. Every manifest entry must exist on disk. A typo here currently surfaces only
-//    when someone happens to run the matching build.
+// Third-party trees are fetched by CMake and intentionally absent from a clean
+// checkout. Host CI runs this test before fetching them, so existence checks
+// cover project-owned files only; the vendor list is still compared against the
+// uVision project below.
+const projectOwned = entry => !entry.startsWith('third_party/');
+let vendorSkipped = 0;
+
+// 1. Every project-owned manifest entry must exist on disk. A typo here
+//    currently surfaces only when someone happens to run the matching build.
 for (const entry of keilExpected) {
+    if (!projectOwned(entry)) {
+        ++vendorSkipped;
+        continue;
+    }
     if (!fs.existsSync(path.join(root, entry))) {
         problems.push(`manifest entry does not exist: ${entry}`);
     }
@@ -40,6 +51,10 @@ for (const entry of keilExpected) {
 
 // Files listed in the manifest drive the GCC chain too; check those as well.
 for (const entry of [manifest.gccPort, manifest.gccStartup, manifest.gccRuntime]) {
+    if (!projectOwned(entry)) {
+        ++vendorSkipped;
+        continue;
+    }
     if (!fs.existsSync(path.join(root, entry))) {
         problems.push(`manifest entry does not exist: ${entry}`);
     }
@@ -74,4 +89,5 @@ if (problems.length > 0) {
 }
 
 console.log(`PASS source manifest: ${listedFiles.size} files agree between ${manifestPath}`
-    + ` and ${manifest.keilProject}`);
+    + ` and ${manifest.keilProject}`
+    + (vendorSkipped > 0 ? ` (${vendorSkipped} vendor paths not fetched; existence unchecked)` : ''));
