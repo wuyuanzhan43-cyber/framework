@@ -1,0 +1,9 @@
+{
+  "baseline": "STM32CubeF4 v1.28.1 driver version matrix; standalone FreeRTOS V11.1.0",
+  "dependencies": [
+    {"name":"hal","repository":"https://github.com/STMicroelectronics/stm32f4xx-hal-driver.git","tag":"v1.8.3","commit":"c2e1406d7ea4b73aa42b98ddeb75a8670b1a5a16"},
+    {"name":"device","repository":"https://github.com/STMicroelectronics/cmsis-device-f4.git","tag":"v2.6.10","commit":"5f41fb29d22773896c780052bf61e47fc924d524"},
+    {"name":"cmsis","repository":"https://github.com/ARM-software/CMSIS_5.git","tag":"5.9.0","commit":"2b7495b8535bdcb306dac29b9ded4cfb679d7e5c"},
+    {"name":"freertos","repository":"https://github.com/FreeRTOS/FreeRTOS-Kernel.git","tag":"V11.1.0","commit":"dbf70559b27d39c1fdb68dfb9a32140b6a6777a0"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {"label":"Host: configure","type":"process","command":"cmake","args":["--preset","host-debug"],"options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"Host: build","type":"process","command":"cmake","args":["--build","--preset","host-debug"],"dependsOn":"Host: configure","options":{"cwd":"${workspaceFolder}"},"problemMatcher":["$gcc"],"group":{"kind":"build","isDefault":true}},
+    {"label":"Host: test","type":"process","command":"ctest","args":["--preset","host-debug"],"dependsOn":"Host: build","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"F407: configure","type":"process","command":"cmake","args":["--preset","f407-debug"],"options":{"cwd":"${workspaceFolder}"},"problemMatcher":[]},
+    {"label":"F407: build (ARM GCC)","type":"process","command":"cmake","args":["--build","--preset","f407-debug"],"dependsOn":"F407: configure","options":{"cwd":"${workspaceFolder}"},"problemMatcher":["$gcc"],"group":"build"},
+    {"label":"F407: build (Keil AC5)","type":"process","command":"node","args":["tools/build-keil-ac5.mjs"],"dependsOn":"F407: configure","options":{"cwd":"${workspaceFolder}"},"problemMatcher":[],"group":"build"}
+  ]
+}

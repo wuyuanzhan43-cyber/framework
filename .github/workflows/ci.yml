@@ -1,0 +1,59 @@
+# This file must be at the repository root to be picked up by GitHub Actions.
+# If this directory is committed as a subdirectory of a larger repository,
+# move the workflow to that repository's .github/workflows/ or make this
+# directory its own repository.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    name: Host tests (GCC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        run: cmake --preset host-debug
+      - name: Build
+        run: cmake --build --preset host-debug
+      - name: Test
+        run: ctest --preset host-debug --output-on-failure
+      - name: Check HIL script syntax
+        run: python3 -m py_compile tests/hil/test_protocol.py
+
+  sanitizers:
+    name: Host tests (ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        run: cmake --preset host-asan
+      - name: Build
+        run: cmake --build --preset host-asan
+      - name: Test
+        run: ctest --preset host-asan --output-on-failure
+
+  arm:
+    name: STM32F407 (ARM GCC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+      - name: Configure
+        run: cmake --preset f407-debug
+      - name: Build
+        run: cmake --build --preset f407-debug
+      - name: Report size
+        run: arm-none-eabi-size build/f407-debug/projects/stm32f407/fw_f407.elf

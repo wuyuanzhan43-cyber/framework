@@ -1,0 +1,34 @@
+# Build outputs (both CMake and Keil write here)
+build/
+
+# Third-party dependencies are fetched by cmake/dependencies.cmake from
+# third_party/dependencies.lock.json and pinned by commit hash.
+#
+# WARNING: local edits made under third_party/ are therefore NOT tracked and will
+# be lost by a fresh FetchContent checkout. This project currently patches one
+# vendor file -- see projects/stm32f407/KEIL.md section 4 and the patch in
+# third_party/patches/ (applied by cmake/dependencies.cmake).
+third_party/*/
+
+# Applied dependency patches stay tracked: negate the ignore for the patch dir.
+!third_party/patches/
+
+.serena/
+
+# Keil uVision user/session files. The .uvprojx project file IS tracked because
+# it is a generator output that must be openable straight from a checkout.
+*.uvguix.*
+*.uvoptx
+*.uvprojx.bak
+*.__i
+*.dep
+*.scvd
+JLinkLog.txt
+RTE/
+
+Objects/
+Listings/
+
+# Python cache
+__pycache__/
+*.pyc

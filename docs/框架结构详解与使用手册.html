@@ -1,0 +1,2043 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="STM32F407 嵌入式框架 v0.1：分层架构、接口契约、协议、DMA、构建、移植与使用手册。">
+<title>嵌入式框架 · 结构详解与使用手册</title>
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root {
+  --paper: #f3efe4;
+  --paper-2: #ebe5d6;
+  --paper-3: #e2dac7;
+  --ink: #182126;
+  --ink-2: #2d393e;
+  --muted: #5f6868;
+  --line: #cec4b1;
+  --line-strong: #a99d86;
+  --accent: #b94f2c;
+  --accent-soft: #f0d9cf;
+  --teal: #126e6e;
+  --teal-soft: #d4e5e2;
+  --brass: #a9852a;
+  --ok: #2f6f4e;
+  --warn: #9a5a18;
+  --danger: #9b2f2f;
+  --code-bg: #151b1e;
+  --code-ink: #e9e2d3;
+  --code-muted: #8d9a96;
+  --shadow: 0 18px 50px rgba(24, 33, 38, .10);
+  --shadow-sm: 0 3px 14px rgba(24, 33, 38, .08);
+  --radius: 2px;
+  --rail: 286px;
+  --content: 1120px;
+  --display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Songti SC", "STSong", "Times New Roman", serif;
+  --body: "Avenir Next", "Gill Sans", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --mono: "Cascadia Code", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+}
+html[data-theme="dark"] {
+  --paper: #10171a;
+  --paper-2: #151e21;
+  --paper-3: #1b2629;
+  --ink: #e9e3d6;
+  --ink-2: #c7cfc9;
+  --muted: #98a39f;
+  --line: #2c3a3d;
+  --line-strong: #526266;
+  --accent: #e27a50;
+  --accent-soft: #32221b;
+  --teal: #63bdb6;
+  --teal-soft: #16302f;
+  --brass: #d8b451;
+  --ok: #7dbf95;
+  --warn: #e2ad61;
+  --danger: #e08383;
+  --code-bg: #090e10;
+  --code-ink: #e9e3d6;
+  --code-muted: #7f8d89;
+  --shadow: 0 18px 60px rgba(0, 0, 0, .32);
+  --shadow-sm: 0 3px 18px rgba(0, 0, 0, .22);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.72;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: .42;
+  background-image:
+    linear-gradient(rgba(120, 105, 80, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 105, 80, .055) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+html[data-theme="dark"] body::before {
+  background-image:
+    linear-gradient(rgba(150, 190, 185, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 190, 185, .05) 1px, transparent 1px);
+}
+a { color: var(--teal); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--accent); }
+img, svg { max-width: 100%; }
+button, input { font: inherit; }
+button { color: inherit; }
+::selection { background: var(--accent); color: #fff8ed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.skip-link {
+  position: fixed; top: -60px; left: 16px; z-index: 200;
+  padding: 10px 16px; background: var(--ink); color: var(--paper);
+  font-family: var(--mono); font-size: 12px;
+}
+.skip-link:focus { top: 12px; }
+
+/* ============================================================
+   PROGRESS + RAIL
+   ============================================================ */
+.progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 120;
+  background: transparent;
+}
+.progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+
+.rail {
+  position: fixed; inset: 0 auto 0 0; z-index: 110;
+  width: var(--rail);
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, var(--paper-2), var(--paper));
+  border-right: 1px solid var(--line);
+  padding: 26px 22px 20px;
+}
+.brand { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.brand-mark {
+  width: 42px; height: 42px; flex: none;
+  display: grid; place-items: center;
+  border: 1px solid var(--ink);
+  font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: -.04em;
+  position: relative;
+}
+.brand-mark::after {
+  content: ""; position: absolute; inset: 3px;
+  border: 1px solid var(--accent); opacity: .65;
+}
+.brand-text { min-width: 0; }
+.brand-text strong { display: block; font-family: var(--display); font-size: 17px; line-height: 1.1; letter-spacing: .01em; }
+.brand-text span { display: block; margin-top: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+
+.stamp {
+  margin: 16px 0 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  font-family: var(--mono); font-size: 9.5px; line-height: 1.55; letter-spacing: .08em;
+  color: var(--muted);
+  position: relative;
+  background: color-mix(in srgb, var(--accent-soft) 46%, transparent);
+}
+.stamp strong { color: var(--accent); letter-spacing: .12em; }
+.stamp::before {
+  content: ""; position: absolute; inset: 4px;
+  border: 1px dashed var(--line);
+  pointer-events: none;
+}
+
+.search-wrap { position: relative; margin: 4px 0 14px; }
+.search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: .55; }
+#tocSearch {
+  width: 100%; padding: 9px 10px 9px 32px;
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: var(--mono); font-size: 11px;
+}
+#tocSearch::placeholder { color: var(--muted); }
+.search-hint { display: block; margin: -8px 0 12px; font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: right; letter-spacing: .06em; }
+
+#toc { overflow-y: auto; flex: 1; margin: 0 -6px; padding: 0 6px 10px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+#toc a {
+  display: grid; grid-template-columns: 27px 1fr; gap: 7px;
+  padding: 6px 8px; margin: 1px 0;
+  color: var(--ink-2); text-decoration: none;
+  font-size: 12.5px; line-height: 1.35;
+  border-left: 2px solid transparent;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+#toc a .n { font-family: var(--mono); font-size: 9.5px; color: var(--muted); padding-top: 2px; }
+#toc a:hover { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+#toc a.active { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 72%, transparent); color: var(--ink); }
+#toc a.active .n { color: var(--accent); }
+#toc a[hidden] { display: none; }
+.nav-empty { display: none; padding: 10px 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.nav-empty.show { display: block; }
+
+.rail-foot { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 8px; }
+.rail-actions { display: flex; gap: 8px; }
+.icon-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 8px 9px; border: 1px solid var(--line); background: transparent;
+  cursor: pointer; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em;
+  transition: border-color .16s ease, background .16s ease;
+}
+.icon-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.rail-note { font-family: var(--mono); font-size: 8.5px; line-height: 1.6; color: var(--muted); letter-spacing: .04em; }
+
+.rail-scrim { display: none; }
+
+/* ============================================================
+   MAIN + TOPBAR + HERO
+   ============================================================ */
+.main { margin-left: var(--rail); position: relative; z-index: 1; }
+.topbar {
+  position: sticky; top: 0; z-index: 90;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px clamp(20px, 4vw, 54px);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.crumb { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--muted); flex: 1; }
+.crumb b { color: var(--ink); font-weight: 600; }
+.menu-btn { display: none; background: transparent; border: 1px solid var(--line); width: 36px; height: 34px; cursor: pointer; }
+.top-links { display: flex; gap: 14px; align-items: center; font-family: var(--mono); font-size: 10px; }
+.top-links a { color: var(--muted); text-decoration: none; }
+.top-links a:hover { color: var(--accent); }
+
+.hero {
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+  gap: clamp(26px, 5vw, 70px);
+  align-items: center;
+  padding: clamp(44px, 7vw, 92px) clamp(20px, 4vw, 54px) clamp(42px, 6vw, 80px);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.hero::after {
+  content: ""; position: absolute; right: -110px; top: -120px;
+  width: 430px; height: 430px; border: 1px solid var(--line);
+  border-radius: 50%; opacity: .55; pointer-events: none;
+}
+.hero::before {
+  content: ""; position: absolute; left: 0; bottom: 0;
+  width: 38%; height: 1px; background: var(--accent); opacity: .5;
+}
+.hero-copy { position: relative; z-index: 2; animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+.kicker {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin: 0 0 20px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .17em; text-transform: uppercase; color: var(--muted);
+}
+.kicker::before { content: ""; width: 34px; height: 1px; background: var(--accent); }
+h1 {
+  margin: 0;
+  font-family: var(--display); font-weight: 500;
+  font-size: clamp(2.55rem, 5.6vw, 5rem);
+  line-height: .98; letter-spacing: -.035em;
+}
+h1 em { font-style: italic; color: var(--accent); }
+.lede { max-width: 680px; margin: 24px 0 0; color: var(--ink-2); font-size: clamp(15px, 1.4vw, 17.5px); line-height: 1.75; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 24px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 9px; border: 1px solid var(--line-strong);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--ink-2);
+  background: color-mix(in srgb, var(--paper-2) 70%, transparent);
+}
+.chip i { width: 5px; height: 5px; background: var(--accent); display: inline-block; border-radius: 50%; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 16px; border: 1px solid var(--ink);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-decoration: none;
+  transition: transform .16s ease, background .16s ease, color .16s ease;
+}
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff8ed; transform: translateY(-2px); }
+.btn.ghost { color: var(--ink); }
+.btn.ghost:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-2px); }
+.hero-art { position: relative; z-index: 1; animation: rise .9s .12s cubic-bezier(.2,.7,.2,1) both; }
+.hero-svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 20px 30px rgba(0,0,0,.08)); }
+.hero-stamp {
+  position: absolute; right: clamp(16px, 5vw, 68px); bottom: 24px; z-index: 3;
+  transform: rotate(-5deg);
+  padding: 8px 12px;
+  border: 2px double var(--accent);
+  color: var(--accent);
+  font-family: var(--mono); font-size: 8.5px; line-height: 1.5; letter-spacing: .14em; text-align: center;
+  opacity: .8;
+}
+
+/* SVG shared */
+.node rect { fill: var(--paper-2); stroke: var(--line-strong); stroke-width: 1; }
+.node.accent rect { fill: color-mix(in srgb, var(--accent-soft) 70%, var(--paper-2)); stroke: var(--accent); }
+.node.teal rect { fill: color-mix(in srgb, var(--teal-soft) 70%, var(--paper-2)); stroke: var(--teal); }
+.node.dark rect { fill: var(--ink); stroke: var(--ink); }
+.node text { fill: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+.node .sub { fill: var(--muted); font-size: 8.5px; letter-spacing: .06em; }
+.node.dark text { fill: var(--paper); }
+.node.dark .sub { fill: color-mix(in srgb, var(--paper) 72%, transparent); }
+svg [fill="var(--accent)"] { fill: var(--accent); }
+svg [fill="var(--teal)"] { fill: var(--teal); }
+svg [stroke="var(--line)"] { stroke: var(--line); }
+#heroGrid path { stroke: var(--line); }
+#heroArrow path, #flowArrow path { fill: var(--accent); }
+#heroArrowTeal path, #flowArrowTeal path { fill: var(--teal); }
+.flow { fill: none; stroke: var(--accent); stroke-width: 1.25; stroke-dasharray: 5 7; animation: dash 8s linear infinite; }
+.flow.teal { stroke: var(--teal); }
+.flow.slow { animation-duration: 12s; }
+.dim { stroke: var(--line-strong); stroke-width: 1; fill: none; }
+.blueprint-label { fill: var(--muted); font-family: var(--mono); font-size: 8px; letter-spacing: .1em; }
+.isr-line { stroke: var(--brass); stroke-width: 1; stroke-dasharray: 2 5; }
+@keyframes dash { to { stroke-dashoffset: -220; } }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+/* ============================================================
+   QUICKSTART BAND
+   ============================================================ */
+.quick-band {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--line);
+}
+.quick-card { padding: 24px clamp(18px, 2.6vw, 34px); border-right: 1px solid var(--line); position: relative; }
+.quick-card:last-child { border-right: 0; }
+.quick-card .qnum { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--accent); }
+.quick-card h3 { margin: 8px 0 6px; font-family: var(--display); font-size: 20px; font-weight: 500; }
+.quick-card p { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.quick-card code { font-family: var(--mono); font-size: 10px; color: var(--ink-2); }
+
+/* ============================================================
+   CONTENT / SECTIONS
+   ============================================================ */
+.content { max-width: var(--content); margin: 0 auto; padding: 0 clamp(20px, 4vw, 54px); }
+.section { padding: clamp(48px, 6vw, 86px) 0; border-bottom: 1px solid var(--line); scroll-margin-top: 76px; }
+.section:last-of-type { border-bottom: 0; }
+.section-head { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 20px; align-items: start; margin-bottom: 34px; }
+.sec-num {
+  font-family: var(--display); font-size: clamp(42px, 5vw, 66px); line-height: .8;
+  color: transparent; -webkit-text-stroke: 1px var(--line-strong); font-weight: 400;
+  padding-top: 2px;
+}
+.sec-kicker { margin: 0 0 7px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(1.75rem, 3vw, 2.75rem); line-height: 1.05; letter-spacing: -.02em; }
+.sec-intro { max-width: 780px; margin: 12px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.75; }
+h3 { margin: 34px 0 12px; font-family: var(--display); font-weight: 500; font-size: clamp(1.18rem, 1.8vw, 1.45rem); letter-spacing: -.01em; }
+h4 { margin: 22px 0 8px; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+p { margin: 0 0 14px; }
+.small { font-size: 13px; color: var(--muted); }
+.tiny { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: .04em; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.card {
+  position: relative; padding: 20px 20px 18px;
+  background: color-mix(in srgb, var(--paper-2) 72%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+.card::before, .card::after {
+  content: ""; position: absolute; width: 7px; height: 7px; border-color: var(--accent); border-style: solid; opacity: .7;
+}
+.card::before { left: -1px; top: -1px; border-width: 1px 0 0 1px; }
+.card::after { right: -1px; bottom: -1px; border-width: 0 1px 1px 0; }
+.card h3, .card h4 { margin-top: 0; }
+.card p:last-child { margin-bottom: 0; }
+.card .tag { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; color: var(--accent); }
+.card.teal { border-color: color-mix(in srgb, var(--teal) 40%, var(--line)); }
+.card.teal::before, .card.teal::after { border-color: var(--teal); }
+.card.dark { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.card.dark .small, .card.dark .tiny { color: color-mix(in srgb, var(--paper) 65%, transparent); }
+
+.callout {
+  position: relative; margin: 22px 0; padding: 16px 18px 15px 20px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+  font-size: 13.5px; line-height: 1.7;
+}
+.callout::before {
+  content: attr(data-label); display: block; margin-bottom: 5px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--accent);
+}
+.callout.note { border-left-color: var(--teal); background: color-mix(in srgb, var(--teal-soft) 42%, transparent); }
+.callout.note::before { color: var(--teal); }
+.callout.warn { border-left-color: var(--brass); background: color-mix(in srgb, #e6c878 22%, transparent); }
+.callout.warn::before { color: var(--warn); }
+.callout.danger { border-left-color: var(--danger); background: color-mix(in srgb, #d98989 18%, transparent); }
+.callout.danger::before { color: var(--danger); }
+.callout p:last-child { margin-bottom: 0; }
+
+/* tables */
+.table-wrap { overflow-x: auto; margin: 18px 0 24px; border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.55; min-width: 560px; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { background: color-mix(in srgb, var(--paper-3) 68%, transparent); font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td code, th code { font-family: var(--mono); font-size: 11px; background: color-mix(in srgb, var(--paper-3) 55%, transparent); padding: 1px 4px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* lists */
+ul.clean, ol.clean { margin: 10px 0 18px; padding-left: 20px; }
+ul.clean li, ol.clean li { margin: 6px 0; }
+ul.clean li::marker { color: var(--accent); }
+ol.clean li::marker { color: var(--accent); font-family: var(--mono); font-size: 11px; }
+.checklist { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 7px; }
+.checklist li { position: relative; padding-left: 25px; font-size: 13px; line-height: 1.6; }
+.checklist li::before {
+  content: ""; position: absolute; left: 0; top: .42em;
+  width: 11px; height: 11px; border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--paper) 60%, transparent);
+}
+.checklist li::after {
+  content: ""; position: absolute; left: 3px; top: .63em;
+  width: 5px; height: 2px; background: var(--accent); opacity: .55;
+}
+.steps { counter-reset: step; display: grid; gap: 14px; margin: 18px 0; }
+.step { counter-increment: step; display: grid; grid-template-columns: 42px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px dashed var(--line); }
+.step:last-child { border-bottom: 0; }
+.step::before {
+  content: counter(step, decimal-leading-zero);
+  font-family: var(--mono); font-size: 10px; color: var(--accent);
+  padding-top: 4px;
+}
+.step h4 { margin: 0 0 4px; font-size: 12px; color: var(--ink); text-transform: none; letter-spacing: .02em; font-family: var(--body); font-weight: 700; }
+.step p { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* code */
+.code-card { margin: 16px 0 22px; border: 1px solid var(--line-strong); background: var(--code-bg); overflow: hidden; box-shadow: var(--shadow-sm); }
+.code-head { display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 14px; border-bottom: 1px solid rgba(233,226,211,.12); color: var(--code-muted); }
+.code-head .lang { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
+.code-head .file { font-family: var(--mono); font-size: 9.5px; color: var(--code-muted); margin-left: auto; }
+.copy-btn { border: 1px solid rgba(233,226,211,.2); background: transparent; color: var(--code-muted); padding: 3px 8px; cursor: pointer; font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; }
+.copy-btn:hover { color: var(--code-ink); border-color: var(--accent); }
+pre { margin: 0; padding: 16px 18px; overflow-x: auto; color: var(--code-ink); font-family: var(--mono); font-size: 11.5px; line-height: 1.68; tab-size: 4; }
+code { font-family: var(--mono); }
+.token-comment { color: #7f918b; font-style: italic; }
+.token-string { color: #d8b46e; }
+.token-keyword { color: #e38a61; }
+.token-type { color: #74b9b2; }
+.token-number { color: #c7a6e0; }
+.token-pre { color: #b7c98b; }
+.token-fn { color: #e8d8b8; }
+
+/* frame diagram */
+.frame { display: flex; flex-wrap: wrap; gap: 3px; margin: 18px 0 8px; font-family: var(--mono); }
+.byte { min-width: 54px; padding: 9px 8px 8px; border: 1px solid var(--line-strong); background: var(--paper-2); text-align: center; }
+.byte b { display: block; font-size: 11px; letter-spacing: .06em; }
+.byte span { display: block; margin-top: 3px; font-size: 8px; letter-spacing: .08em; color: var(--muted); }
+.byte.pre { border-color: var(--brass); background: color-mix(in srgb, #e6c878 20%, var(--paper-2)); }
+.byte.len { border-color: var(--accent); background: var(--accent-soft); }
+.byte.seq { border-color: var(--teal); background: var(--teal-soft); }
+.byte.cmd { border-color: var(--accent); background: var(--accent-soft); }
+.byte.payload { flex: 1; min-width: 160px; border-style: dashed; }
+.byte.crc { border-color: var(--brass); background: color-mix(in srgb, #e6c878 20%, var(--paper-2)); }
+.crc-bracket { position: relative; margin: -2px 0 20px; padding-top: 10px; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.crc-bracket::before { content: ""; position: absolute; left: 112px; right: 112px; top: 0; height: 1px; background: var(--brass); }
+.crc-bracket::after { content: ""; position: absolute; left: 112px; top: 0; width: 1px; height: 7px; background: var(--brass); }
+
+/* tabs */
+.tabs { margin: 18px 0 22px; }
+.tab-btns { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab-btn { border: 1px solid transparent; border-bottom: 0; background: transparent; padding: 9px 13px; cursor: pointer; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--muted); }
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.active { background: var(--paper-2); border-color: var(--line); color: var(--accent); position: relative; top: 1px; }
+.tab-panel { display: none; padding-top: 14px; }
+.tab-panel.active { display: block; animation: rise .25s ease both; }
+
+/* misc */
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid var(--line-strong); font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em; color: var(--muted); }
+.badge.ok { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); color: var(--ok); }
+.badge.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); color: var(--warn); }
+.badge.bad { border-color: color-mix(in srgb, var(--danger) 55%, var(--line)); color: var(--danger); }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.bad { background: var(--danger); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+.margin-note { margin: 18px 0; padding-left: 14px; border-left: 1px solid var(--line-strong); font-size: 12.5px; color: var(--muted); font-style: italic; }
+details { border-top: 1px solid var(--line); padding: 13px 0; }
+details:last-child { border-bottom: 1px solid var(--line); }
+summary { cursor: pointer; font-weight: 600; font-size: 13.5px; list-style: none; display: flex; align-items: center; gap: 10px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+"; font-family: var(--mono); color: var(--accent); font-size: 15px; width: 14px; }
+details[open] summary::before { content: "−"; }
+details p, details ul { margin: 10px 0 2px 24px; font-size: 13px; color: var(--muted); }
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .55s ease, transform .55s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+/* footer */
+.footer { padding: 34px clamp(20px, 4vw, 54px) 46px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+.footer .big { font-family: var(--display); font-size: 26px; line-height: 1.1; }
+.footer .meta { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--muted); text-align: right; line-height: 1.8; }
+
+.backtop { position: fixed; right: 22px; bottom: 22px; z-index: 100; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line-strong); background: var(--paper-2); color: var(--ink); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; box-shadow: var(--shadow-sm); }
+.backtop.show { opacity: 1; pointer-events: auto; }
+.backtop:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
+
+/* responsive */
+@media (max-width: 1100px) {
+  :root { --rail: 250px; }
+  .hero { grid-template-columns: 1fr; }
+  .hero-art { max-width: 620px; }
+  .hero-stamp { right: 24px; bottom: 20px; }
+  .quick-band { grid-template-columns: 1fr; }
+  .quick-card { border-right: 0; border-bottom: 1px solid var(--line); }
+  .quick-card:last-child { border-bottom: 0; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 820px) {
+  .rail { transform: translateX(-100%); transition: transform .28s ease; box-shadow: var(--shadow); width: min(86vw, 310px); }
+  body.nav-open .rail { transform: none; }
+  .rail-scrim { display: block; position: fixed; inset: 0; background: rgba(10,14,16,.45); z-index: 105; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+  body.nav-open .rail-scrim { opacity: 1; pointer-events: auto; }
+  .main { margin-left: 0; }
+  .menu-btn { display: grid; place-items: center; }
+  .top-links { display: none; }
+  .hero { padding-top: 46px; }
+  .hero-stamp { position: static; display: inline-block; margin-top: 18px; transform: rotate(-2deg); }
+  .section-head { grid-template-columns: 54px 1fr; gap: 12px; }
+  .sec-num { font-size: 40px; }
+  .grid-2, .grid-3, .split { grid-template-columns: 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  .crc-bracket::before, .crc-bracket::after { left: 60px; right: 60px; }
+}
+@media (max-width: 520px) {
+  body { font-size: 15px; }
+  .hero-meta .chip { font-size: 8.5px; }
+  .grid-4 { grid-template-columns: 1fr; }
+  .footer .meta { text-align: left; }
+  .byte { min-width: 46px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+@media print {
+  :root { --paper: #fff; --paper-2: #fff; --paper-3: #f2f2f2; --ink: #111; --muted: #444; --line: #bbb; }
+  body::before, .rail, .topbar, .backtop, .hero-stamp, .progress, .copy-btn, .hero-art { display: none !important; }
+  .main { margin: 0; }
+  .hero { padding: 20px 0; }
+  .section { break-inside: avoid; }
+  .code-card { break-inside: avoid; }
+  a { color: #111; }
+}
+</style>
+</head>
+<body>
+<noscript><style>.reveal { opacity: 1 !important; transform: none !important; }</style></noscript>
+<a class="skip-link" href="#quickstart">跳到正文</a>
+<div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+<aside class="rail" id="rail" aria-label="章节导航">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">FW<br>46</div>
+    <div class="brand-text">
+      <strong>嵌入式框架</strong>
+      <span>Field Manual · v0.1</span>
+    </div>
+  </div>
+  <div class="stamp">
+    <strong>VERIFIED ON TARGET</strong><br>
+    COM16 · 115200 8N1<br>
+    HIL 8/8 · STRESS 500
+  </div>
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="m13 13 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    <input id="tocSearch" type="search" placeholder="搜索章节" aria-label="搜索章节">
+  </div>
+  <span class="search-hint">Ctrl / ⌘ + K</span>
+  <nav id="toc">
+    <a href="#quickstart"><span class="n">00</span><span>快速开始</span></a>
+    <a href="#s01"><span class="n">01</span><span>定位与阅读路径</span></a>
+    <a href="#s02"><span class="n">02</span><span>分层架构</span></a>
+    <a href="#s03"><span class="n">03</span><span>数据通路与调度</span></a>
+    <a href="#s04"><span class="n">04</span><span>核心接口契约</span></a>
+    <a href="#s05"><span class="n">05</span><span>协议与命令</span></a>
+    <a href="#s06"><span class="n">06</span><span>端口、板级与 DMA</span></a>
+    <a href="#s07"><span class="n">07</span><span>构建、烧录与工具链</span></a>
+    <a href="#s08"><span class="n">08</span><span>使用手册</span></a>
+    <a href="#s09"><span class="n">09</span><span>验证与测试</span></a>
+    <a href="#s10"><span class="n">10</span><span>移植检查表</span></a>
+    <a href="#s11"><span class="n">11</span><span>故障排查</span></a>
+    <a href="#s12"><span class="n">12</span><span>边界与路线图</span></a>
+    <a href="#appendix"><span class="n">A</span><span>附录 · 文件与术语</span></a>
+    <div class="nav-empty" id="navEmpty">没有匹配的章节</div>
+  </nav>
+  <div class="rail-foot">
+    <div class="rail-actions">
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="切换主题"><span id="themeIcon">◐</span><span id="themeLabel">夜间</span></button>
+      <button class="icon-btn" id="printBtn" type="button" aria-label="打印手册">⌘P</button>
+    </div>
+    <div class="rail-note">Self-contained HTML · No CDN<br>Source: 46.嵌入式框架设计1</div>
+  </div>
+</aside>
+<div class="rail-scrim" id="scrim"></div>
+
+<main class="main">
+  <header class="topbar">
+    <button class="menu-btn" id="menuBtn" type="button" aria-label="打开章节导航">☰</button>
+    <div class="crumb"><b>FW / MANUAL</b> &nbsp;·&nbsp; STM32F407 · C99 · FREERTOS · DMA</div>
+    <div class="top-links">
+      <a href="#s07">构建</a>
+      <a href="#s08">使用</a>
+      <a href="#s11">排障</a>
+    </div>
+  </header>
+
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <p class="kicker">Contract-first embedded framework · 2026</p>
+      <h1>嵌入式框架<br><em>结构详解</em>与使用手册</h1>
+      <p class="lede">
+        一份面向 STM32F407 的最小闭环框架手册：从分层红线、接口契约、协议与 DMA，
+        到构建、移植、排障和上板验证。它不是“功能清单”，而是一张可以照着走的工程地图。
+      </p>
+      <div class="hero-meta">
+        <span class="chip"><i></i> STM32F407VET6</span>
+        <span class="chip">HAL + FreeRTOS</span>
+        <span class="chip">C99 · 静态分配</span>
+        <span class="chip">USART1 DMA</span>
+        <span class="chip">1.8" TFT · ST7735S</span>
+        <span class="chip">GCC / Keil AC5</span>
+      </div>
+      <div class="hero-actions">
+        <a class="btn primary" href="#quickstart">5 分钟跑起来 <span aria-hidden="true">→</span></a>
+        <a class="btn ghost" href="#s02">先看架构</a>
+      </div>
+    </div>
+    <div class="hero-art">
+      <svg class="hero-svg" viewBox="0 0 600 480" role="img" aria-label="框架分层与数据通路示意图">
+        <defs>
+          <pattern id="heroGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M20 0H0V20" fill="none" stroke="var(--line)" stroke-width=".5" opacity=".45"/>
+          </pattern>
+          <marker id="heroArrow" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto">
+            <path d="M0 0 7 3.5 0 7Z" fill="var(--accent)"/>
+          </marker>
+          <marker id="heroArrowTeal" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto">
+            <path d="M0 0 7 3.5 0 7Z" fill="var(--teal)"/>
+          </marker>
+        </defs>
+        <rect x="18" y="18" width="564" height="444" fill="url(#heroGrid)" opacity=".7"/>
+        <rect x="18" y="18" width="564" height="444" fill="none" stroke="var(--line)" stroke-width="1"/>
+
+        <g class="node accent">
+          <rect x="92" y="54" width="416" height="58" rx="1"/>
+          <text x="112" y="79">APP / EXAMPLE</text>
+          <text x="112" y="96" class="sub">command table · LED · report</text>
+        </g>
+        <g class="node teal">
+          <rect x="92" y="132" width="190" height="58" rx="1"/>
+          <text x="110" y="157">PROTOCOL</text>
+          <text x="110" y="174" class="sub">frame · CRC · parser</text>
+        </g>
+        <g class="node">
+          <rect x="318" y="132" width="190" height="58" rx="1"/>
+          <text x="336" y="157">FRAMEWORK</text>
+          <text x="336" y="174" class="sub">stream · ring · status</text>
+        </g>
+        <g class="node">
+          <rect x="92" y="212" width="416" height="58" rx="1"/>
+          <text x="110" y="237">PORTS</text>
+          <text x="110" y="254" class="sub">host · freertos · stm32f4</text>
+        </g>
+        <g class="node dark">
+          <rect x="92" y="292" width="190" height="58" rx="1"/>
+          <text x="110" y="317">HAL / LL</text>
+          <text x="110" y="334" class="sub">USART · GPIO · DMA</text>
+        </g>
+        <g class="node dark">
+          <rect x="318" y="292" width="190" height="58" rx="1"/>
+          <text x="336" y="317">FreeRTOS</text>
+          <text x="336" y="334" class="sub">task · tick · notify</text>
+        </g>
+
+        <path class="flow" d="M300 112V132" marker-end="url(#heroArrow)"/>
+        <path class="flow teal" d="M300 190V212" marker-end="url(#heroArrowTeal)"/>
+        <path class="flow" d="M300 270V292" marker-end="url(#heroArrow)"/>
+        <path class="flow teal slow" d="M413 270V292" marker-end="url(#heroArrowTeal)"/>
+
+        <path class="dim" d="M528 83H556V321H528"/>
+        <text class="blueprint-label" x="536" y="196" transform="rotate(90 536 196)">BOARD / PROJECT ASSEMBLY</text>
+
+        <path class="dim" d="M64 54V350"/>
+        <path class="dim" d="M58 54H70M58 132H70M58 212H70M58 292H70"/>
+        <text class="blueprint-label" x="26" y="212" transform="rotate(-90 26 212)">DEPENDENCY DIRECTION</text>
+
+        <g class="node accent">
+          <rect x="92" y="386" width="416" height="52" rx="1"/>
+          <text x="110" y="408">UART FRAME</text>
+          <text x="110" y="425" class="sub">A5 5A · LEN · SEQ · CMD · PAYLOAD · CRC</text>
+        </g>
+        <path class="flow" d="M300 350V386" marker-end="url(#heroArrow)"/>
+
+        <circle cx="300" cy="454" r="3" fill="var(--accent)"/>
+        <text class="blueprint-label" x="312" y="458">RX DMA / TX DMA · COM16 VERIFIED</text>
+      </svg>
+      <div class="hero-stamp">FIELD<br>VERIFIED<br>2026.10.19</div>
+    </div>
+  </section>
+
+  <section class="quick-band" id="quickstart">
+    <div class="quick-card">
+      <div class="qnum">01 / HOST</div>
+      <h3>先在电脑上跑</h3>
+      <p>不需要板子。Host 端口用内存模拟 UART、LED 和时钟，适合先理解业务。</p>
+      <code>cmake --preset host-debug<br>cmake --build --preset host-debug<br>ctest --preset host-debug</code>
+    </div>
+    <div class="quick-card">
+      <div class="qnum">02 / TARGET</div>
+      <h3>构建并烧录</h3>
+      <p>Keil AC5 默认开启 USART1 DMA。产物是 HEX/BIN，可用 Keil 或 pyOCD 烧录。</p>
+      <code>node tools/build-keil-ac5.mjs<br>pyocd flash -t stm32f407ve \<br>&nbsp;&nbsp;build/keil-ac5/fw_f407.hex</code>
+    </div>
+    <div class="quick-card">
+      <div class="qnum">03 / VERIFY</div>
+      <h3>跑 HIL 验证</h3>
+      <p>接上 COM 口后运行 8 项协议冒烟测试；DMA 版本已通过 500 次压力测试。</p>
+      <code>python tests/hil/test_protocol.py \<br>&nbsp;&nbsp;--port COM16 --stats</code>
+    </div>
+  </section>
+
+  <div class="content">
+
+    <!-- ============================================================ 01 -->
+    <section class="section reveal" id="s01">
+      <div class="section-head">
+        <div class="sec-num">01</div>
+        <div>
+          <div class="sec-kicker">Orientation</div>
+          <h2>定位与阅读路径</h2>
+          <p class="sec-intro">先确认这套代码“是什么、不是什么”，再决定从哪里读。它刻意保持小而完整：功能不多，但边界、契约和验证链是完整的。</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">IS</div>
+          <h3>它是什么</h3>
+          <ul class="clean">
+            <li>一个<strong>契约驱动的最小闭环</strong>：UART 字节 → 协议 → 命令 → LED → 回复。</li>
+            <li>同一份业务与协议代码可在 Host 和 STM32F407 上编译。</li>
+            <li>静态分配、无 malloc，ISR/任务边界明确。</li>
+            <li>有 Host 单测、接口 conformance、HIL 和目标硬件验证。</li>
+            <li>默认启用 USART1 DMA，GCC 与 AC5 两条链都已上板验证。</li>
+          </ul>
+        </div>
+        <div class="card teal">
+          <div class="tag">IS NOT</div>
+          <h3>它不是什么</h3>
+          <ul class="clean">
+            <li>不是完整 RTOS 抽象层，也不是多任务设备框架。</li>
+            <li>没有设备注册表、事件总线、日志服务、存储或 OTA。</li>
+            <li>没有目标侧 17 条契约的完整 loopback conformance（已按需求跳过）。</li>
+            <li>DMA 映射目前只覆盖 USART1；AC6 尚未验证。</li>
+            <li>不是“功能越多越好”的框架；扩展前先有需求与验收标准。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout note" data-label="阅读路径">
+        <p><strong>想快速使用</strong>：直接看 <a href="#quickstart">快速开始</a>、<a href="#s07">构建</a>、<a href="#s08">使用手册</a>。<br>
+        <strong>想理解设计</strong>：按 <a href="#s02">02 架构</a> → <a href="#s03">03 数据通路</a> → <a href="#s04">04 契约</a> 顺序读。<br>
+        <strong>想换板/扩展</strong>：看 <a href="#s06">06 端口</a>、<a href="#s10">10 移植检查表</a>、<a href="#s11">11 排障</a>。</p>
+      </div>
+
+      <h3>当前状态一览</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>维度</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>Host 测试</td><td><span class="badge ok">PASS</span></td><td>CTest 5/5；13 组、25,256 次断言</td></tr>
+            <tr><td>接口 conformance（Host）</td><td><span class="badge ok">PASS</span></td><td>17 条契约；含 5 个故意违规端口</td></tr>
+            <tr><td>HIL（COM16）</td><td><span class="badge ok">PASS</span></td><td>8 项，含 STATS；115200 8N1</td></tr>
+            <tr><td>DMA 压力测试</td><td><span class="badge ok">PASS</span></td><td>GCC/AC5 各 500 次 PING，io_errors=0</td></tr>
+            <tr><td>ST7735S 显示</td><td><span class="badge ok">PASS</span></td><td>色条与头像实屏验证；文字 API 可用，启动文字关闭</td></tr>
+            <tr><td>目标侧完整 conformance</td><td><span class="badge warn">SKIPPED</span></td><td>需要 loopback 测试固件；当前未做</td></tr>
+            <tr><td>故障转储/看门狗</td><td><span class="badge warn">PARTIAL</span></td><td>代码已实现；未做故障注入验证；IWDG 默认关闭</td></tr>
+            <tr><td>Git/GitHub</td><td><span class="badge bad">LOCAL</span></td><td>目录仍未纳入 git；未推送</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ 02 -->
+    <section class="section reveal" id="s02">
+      <div class="section-head">
+        <div class="sec-num">02</div>
+        <div>
+          <div class="sec-kicker">Architecture</div>
+          <h2>分层架构：边界比功能重要</h2>
+          <p class="sec-intro">这套框架最重要的设计不是“抽象了很多层”，而是每条依赖边都被写清楚并可检查。层数不多，但边界稳定。</p>
+        </div>
+      </div>
+
+      <h3>目录与职责</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>目录</th><th>职责</th><th>允许依赖</th></tr></thead>
+          <tbody>
+            <tr><td><code>framework/app/</code></td><td>示例业务：PING、LED_SET、STATUS、STATS、周期上报</td><td><code>fw/</code> 接口、协议组件</td></tr>
+            <tr><td><code>framework/app/assets/</code></td><td>128×160 RGB565 示例图片</td><td>只读常量，占用 Flash</td></tr>
+            <tr><td><code>framework/components/protocol/</code></td><td>组帧、逐字节解析、CRC-16</td><td>仅标准 C</td></tr>
+            <tr><td><code>framework/core/</code></td><td><code>fw_stream</code>、<code>fw_indicator</code>、<code>fw_clock</code>、ring、status 的实现</td><td>仅标准 C</td></tr>
+            <tr><td><code>framework/include/fw/</code></td><td>公共接口头文件与契约</td><td>只声明，不依赖芯片/OS</td></tr>
+            <tr><td><code>framework/ports/stm32f4/</code></td><td>把通用接口接到 HAL；UART RX/TX、GPIO、SPI TFT</td><td><code>fw/</code>、HAL</td></tr>
+            <tr><td><code>framework/ports/freertos/</code></td><td>时间与任务休眠适配</td><td>FreeRTOS</td></tr>
+            <tr><td><code>framework/ports/host/</code></td><td>PC 模拟设备与故障注入</td><td><code>fw/</code></td></tr>
+            <tr><td><code>framework/boards/stm32f407ve/</code></td><td>时钟、引脚、外设实例和可选能力</td><td>HAL、端口头</td></tr>
+            <tr><td><code>projects/stm32f407/</code></td><td>启动、任务、中断、链接、构建装配</td><td>以上各层</td></tr>
+            <tr><td><code>tests/</code></td><td>Host 测试、conformance、HIL</td><td>与被测代码共用源码</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout danger" data-label="两条红线">
+        <p><strong>1. <code>framework/core/</code> 与 <code>framework/components/</code> 不得包含 HAL 或 FreeRTOS 头文件。</strong><br>
+        <strong>2. <code>framework/app/</code> 不得包含 <code>framework/ports/</code> 头文件。</strong>业务只面向 <code>fw/</code> 接口，具体平台通过装配代码注入。</p>
+      </div>
+
+      <h3>依赖方向</h3>
+      <div class="code-card">
+        <div class="code-head"><span class="lang">text</span><span class="file">dependency direction</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>framework/app / examples
+      │
+      ▼
+framework/components/protocol        framework/core
+      │                         │
+      └────────────┬────────────┘
+                   ▼
+               framework/ports/&lt;platform&gt;
+                   │
+                   ▼
+              HAL / FreeRTOS
+                   │
+                   ▼
+              framework/boards/ + projects/</code></pre>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="tag">WHY</div>
+          <h3>可测试性</h3>
+          <p>业务只依赖函数表，Host 端口可以模拟 UART、LED、时钟和故障，因而不需要板子就能验证分包、CRC、超时和背压。</p>
+        </div>
+        <div class="card">
+          <div class="tag">WHY</div>
+          <h3>可移植性</h3>
+          <p>换芯片主要新增 <code>framework/ports/</code> 与 <code>framework/boards/</code>；换 RTOS 主要新增 runtime port。协议与业务尽量不动。</p>
+        </div>
+        <div class="card">
+          <div class="tag">WHY</div>
+          <h3>可验证性</h3>
+          <p>接口契约写在头文件里，Host conformance 能对端口逐条检查；板级只负责装配，不藏业务逻辑。</p>
+        </div>
+      </div>
+
+      <h3>板级与项目装配</h3>
+      <p><code>board_init()</code> 只初始化时钟和 LED；串口由 <code>board_console_init()</code> 单独初始化。这样没有串口或没有 LED 的板子不会被“整体初始化失败”绑死。应用通过 <code>fw_demo_init()</code> 注入 stream、indicator、clock；<code>main.c</code> 只负责把对象接起来。</p>
+
+      <div class="code-card">
+        <div class="code-head"><span class="lang">c</span><span class="file">projects/stm32f407/main.c · 装配片段</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>g_app_status = fw_demo_init(&amp;application, board_console(),
+                            board_indicator(), fw_freertos_clock());
+if (g_app_status == FW_OK)
+    g_app_status = fw_demo_set_limits(&amp;application,
+        APP_DEMO_PARTIAL_TIMEOUT_MS,
+        APP_DEMO_TX_TIMEOUT_MS,
+        APP_DEMO_RX_BUDGET);
+if (g_app_status == FW_OK) g_app_status = board_console_init();
+if (g_app_status == FW_OK) board_set_uart_hooks(uart_isr_event, uart_isr_event);
+if (g_app_status == FW_OK) g_app_status = board_start_console();</code></pre>
+      </div>
+    </section>
+
+    <!-- ============================================================ 03 -->
+    <section class="section reveal" id="s03">
+      <div class="section-head">
+        <div class="sec-num">03</div>
+        <div>
+          <div class="sec-kicker">Data Path &amp; Scheduling</div>
+          <h2>数据通路与调度</h2>
+          <p class="sec-intro">接收和发送是两条独立的生产者/消费者链路。理解“谁拥有缓冲区、谁在 ISR、谁在任务”比记住函数名更重要。</p>
+        </div>
+      </div>
+
+      <svg class="hero-svg" viewBox="0 0 1040 450" role="img" aria-label="RX/TX 数据通路与 ISR/任务边界">
+        <defs>
+          <marker id="flowArrow" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7Z" fill="var(--accent)"/></marker>
+          <marker id="flowArrowTeal" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7Z" fill="var(--teal)"/></marker>
+        </defs>
+        <rect x="8" y="8" width="1024" height="434" fill="none" stroke="var(--line)" stroke-dasharray="2 5"/>
+        <text class="blueprint-label" x="22" y="28">RX PATH / ISR → RING → TASK</text>
+        <text class="blueprint-label" x="22" y="424">TX PATH / TASK → RING → DMA/IT → WIRE</text>
+
+        <g class="node accent"><rect x="24" y="48" width="150" height="64"/><text x="41" y="73">USART1 RX</text><text x="41" y="90" class="sub">PA10 · 115200</text></g>
+        <g class="node teal"><rect x="208" y="48" width="176" height="64"/><text x="225" y="73">DMA RX</text><text x="225" y="90" class="sub">circular 256 B · IDLE</text></g>
+        <g class="node"><rect x="418" y="48" width="150" height="64"/><text x="435" y="73">RX RING</text><text x="435" y="90" class="sub">512 B · PRIMASK</text></g>
+        <g class="node"><rect x="602" y="48" width="150" height="64"/><text x="619" y="73">PARSER</text><text x="619" y="90" class="sub">A5 5A · CRC</text></g>
+        <g class="node accent"><rect x="786" y="48" width="220" height="64"/><text x="803" y="73">COMMAND TABLE</text><text x="803" y="90" class="sub">PING · LED · STATUS · STATS</text></g>
+
+        <path class="flow" d="M174 80H208" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M384 80H418" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M568 80H602" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M752 80H786" marker-end="url(#flowArrow)"/>
+
+        <g class="node dark"><rect x="418" y="172" width="334" height="92"/><text x="438" y="198">FREERTOS TASK</text><text x="438" y="216" class="sub">fw_demo_poll() · bounded work</text><text x="438" y="234" class="sub">ulTaskNotifyTake() · event wake</text><text x="438" y="252" class="sub">next_wait_ms() · report / timeout</text></g>
+        <path class="flow teal" d="M493 112V172" marker-end="url(#flowArrowTeal)"/>
+        <path class="flow teal" d="M677 112V172" marker-end="url(#flowArrowTeal)"/>
+        <text class="blueprint-label" x="503" y="145">read / push</text>
+        <text class="blueprint-label" x="687" y="145">dispatch</text>
+
+        <g class="node"><rect x="786" y="172" width="220" height="92"/><text x="803" y="198">HANDLERS</text><text x="803" y="216" class="sub">indicator / reply / stats</text><text x="803" y="234" class="sub">table-driven</text><text x="803" y="252" class="sub">reply buffers</text></g>
+        <path class="flow" d="M896 112V172" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M786 218H752" marker-end="url(#flowArrow)"/>
+
+        <g class="node teal"><rect x="602" y="326" width="150" height="64"/><text x="619" y="351">TX RING</text><text x="619" y="368" class="sub">512 B · accepted</text></g>
+        <g class="node"><rect x="418" y="326" width="150" height="64"/><text x="435" y="351">TX CHUNK</text><text x="435" y="368" class="sub">64 B · stable</text></g>
+        <g class="node accent"><rect x="208" y="326" width="176" height="64"/><text x="225" y="351">DMA / IT TX</text><text x="225" y="368" class="sub">Stream7 / IRQ</text></g>
+        <g class="node"><rect x="24" y="326" width="150" height="64"/><text x="41" y="351">USART1 TX</text><text x="41" y="368" class="sub">PA9 · wire</text></g>
+        <path class="flow" d="M786 264V300H677V326" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M602 358H568" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M418 358H384" marker-end="url(#flowArrow)"/>
+        <path class="flow" d="M208 358H174" marker-end="url(#flowArrow)"/>
+        <text class="blueprint-label" x="700" y="318">copy / accepted</text>
+
+        <path class="isr-line" d="M396 36V404"/>
+        <text class="blueprint-label" x="376" y="418" transform="rotate(-90 376 418)">ISR / TASK BOUNDARY</text>
+      </svg>
+
+      <div class="split" style="margin-top:26px">
+        <div>
+          <h3>RX 路径</h3>
+          <ol class="clean">
+            <li>USART1 通过 DMA2_Stream2/Ch4 循环写入 256 B 缓冲。</li>
+            <li>IDLE / HT / TC 事件把新位置差值复制到 512 B RX ring；跨 wrap 分两段复制。</li>
+            <li><code>fw_demo_poll()</code> 每轮最多读 <code>rx_budget</code>（默认 64）字节。</li>
+            <li>逐字节送入 parser；完整帧进入命令分发表。</li>
+            <li>处理完成后可直接在 RX ring 后继续下一帧；回复与上报不会互相覆盖 TX。</li>
+          </ol>
+        </div>
+        <div>
+          <h3>TX 路径</h3>
+          <ol class="clean">
+            <li>handler 把回复编码到应用 TX 缓冲。</li>
+            <li><code>fw_stream_write()</code> 复制到端口 TX ring，返回 accepted。</li>
+            <li>端口 peek 一个 64 B chunk，启动 DMA/IT 发送。</li>
+            <li>完成回调消费已发送字节，并泵下一段。</li>
+            <li>调用者缓冲区不被保留；accepted 不代表物理线路完成。</li>
+          </ol>
+        </div>
+      </div>
+
+      <h3>轮询顺序：先排空，再判断，最后上报</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>顺序</th><th>动作</th><th>原因</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td>若 TX 未完成，先补发后缀</td><td>不能在未完成时复用回复缓冲</td></tr>
+            <tr><td class="num">2</td><td>有界读取 RX（默认 64 B）</td><td>保证每轮工作有上限，同时给 RX 机会</td></tr>
+            <tr><td class="num">3</td><td>仅当本轮没有读到任何字节，才判断半帧超时</td><td>ring 里可能已有完整帧，先超时会误丢</td></tr>
+            <tr><td class="num">4</td><td>处理到期主动上报</td><td>RX 先获得有界机会，上报每轮仍被检查</td></tr>
+            <tr><td class="num">5</td><td>回复发完后，同一轮可补发到期上报</td><td>避免持续请求饿死上报，也不覆盖回复</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout note" data-label="事件驱动">
+        <p><code>fw_demo_next_wait_ms()</code> 返回下一次需要 poll 的时间：TX 挂起返回 1 ms，上报/半帧超时到期返回 0，无截止时间返回 <code>FW_DEMO_WAIT_FOREVER</code>。UART RX/TX/error ISR 通过板级 hook 调用 <code>vTaskNotifyGiveFromISR()</code> 唤醒任务；空闲时最多每 1 秒兜底唤醒一次。</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ 04 -->
+    <section class="section reveal" id="s04">
+      <div class="section-head">
+        <div class="sec-num">04</div>
+        <div>
+          <div class="sec-kicker">Contracts</div>
+          <h2>核心接口契约</h2>
+          <p class="sec-intro">框架的价值首先体现在头文件里的约定。接口不是“函数签名”，而是“谁拥有缓冲区、错误后 count 怎么报、什么时候可以调用”。</p>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="tag">DEVICE</div>
+          <h3><code>fw_stream</code></h3>
+          <p>字节流设备：UART、USB 字节流、Host 模拟器。包含 <code>read</code>/<code>write</code> 两个函数指针。</p>
+        </div>
+        <div class="card">
+          <div class="tag">DEVICE</div>
+          <h3><code>fw_indicator</code></h3>
+          <p>输出设备：LED 或其它指示器。成功只代表“请求已记录”，不代表光学反馈。</p>
+        </div>
+        <div class="card">
+          <div class="tag">SERVICE</div>
+          <h3><code>fw_clock</code></h3>
+          <p>单调毫秒时钟，按 2<sup>32</sup> 回绕；两次读取间隔必须小于 2<sup>31</sup> ms。</p>
+        </div>
+      </div>
+
+      <h3>Stream 读写约定</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>场景</th><th>约定</th></tr></thead>
+          <tbody>
+            <tr><td>read 空</td><td>非阻塞，返回 <code>FW_EAGAIN</code> 且 <code>count=0</code></td></tr>
+            <tr><td>read 容量</td><td>端口绝不能写超过调用者 <code>capacity</code></td></tr>
+            <tr><td>read 错误</td><td><code>EIO</code>/<code>EOVERFLOW</code> 表示连续性丢失；不返回数据，调用者复位 parser</td></tr>
+            <tr><td>write 接受</td><td>返回真实 accepted 字节数；部分写入只重试后缀</td></tr>
+            <tr><td>write 错误</td><td>错误时也要报告已经接受的字节；不能“接受了却报 0”</td></tr>
+            <tr><td>缓冲区</td><td>write 返回后不保留调用者缓冲区；read 数据复制到调用者缓冲区</td></tr>
+            <tr><td>上下文</td><td>单任务拥有设备；不在 ISR 中调用 poll/write；零长度操作成功</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span class="lang">c</span><span class="file">framework/include/fw/io.h · 接口骨架</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>typedef struct {
+    fw_status_t (*read)(void *ctx, uint8_t *data,
+                        size_t capacity, size_t *count);
+    fw_status_t (*write)(void *ctx, const uint8_t *data,
+                         size_t length, size_t *count,
+                         uint32_t timeout_ms);
+} fw_stream_ops_t;
+
+typedef struct {
+    const fw_stream_ops_t *ops;
+    void *ctx;
+} fw_stream_t;</code></pre>
+      </div>
+
+      <h3>接口一致性套件：17 条契约</h3>
+      <p>Host 端 <code>tests/conformance</code> 把契约拆成 17 条可执行检查，并额外构造 5 个故意违规的端口，确认套件真的会报错——一个从未拒绝过任何端口的测试套件没有证明力。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>组</th><th>条款</th><th>证明什么</th></tr></thead>
+          <tbody>
+            <tr><td>STREAM · 11</td><td><code>READ.EMPTY / ORDER / BOUNDED / DRAINED</code></td><td>空读、顺序、容量边界、排空后不凭空产生数据</td></tr>
+            <tr><td>STREAM · 11</td><td><code>WRITE.COUNT / NORETAIN / PARTIAL</code></td><td>accepted 真实、不保留调用者缓冲区、部分写入可重试</td></tr>
+            <tr><td>STREAM · 11</td><td><code>WRITE.FAULT.PROGRESS / READ.FAULT.*</code></td><td>错误时仍报告进度；流丢失时不返回数据</td></tr>
+            <tr><td>INDICATOR · 4</td><td><code>OPS.COMPLETE / SET.OK / STATE / FAULT.NOSTATE</code></td><td>设置成功可见；失败不改变状态</td></tr>
+            <tr><td>CLOCK · 2</td><td><code>PRESENT / MONOTONIC</code></td><td>时钟存在且不会看起来倒退</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn" data-label="目标侧 conformance 的边界">
+        <p>Host 套件使用内存模拟端口，证明的是“套件和 Host 适配器正确”。要把 17 条搬到 STM32 上，需要单独的测试固件、PA9↔PA10 loopback 和测试专用故障注入 hook。当前按需求<strong>跳过</strong>，因此目标端口还没有被这套套件逐条认证。</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ 05 -->
+    <section class="section reveal" id="s05">
+      <div class="section-head">
+        <div class="sec-num">05</div>
+        <div>
+          <div class="sec-kicker">Protocol</div>
+          <h2>协议与命令</h2>
+          <p class="sec-intro">一个短帧、幂等、无动态长度的二进制协议。它足以覆盖当前单设备场景，但没有版本号、ACK 或地址。</p>
+        </div>
+      </div>
+
+      <h3>帧格式</h3>
+      <div class="frame" aria-label="协议帧格式">
+        <div class="byte pre"><b>A5</b><span>PRE</span></div>
+        <div class="byte pre"><b>5A</b><span>PRE</span></div>
+        <div class="byte len"><b>LEN</b><span>0..32</span></div>
+        <div class="byte seq"><b>SEQ</b><span>1 B</span></div>
+        <div class="byte cmd"><b>CMD</b><span>1 B</span></div>
+        <div class="byte payload"><b>PAYLOAD</b><span>LEN bytes</span></div>
+        <div class="byte crc"><b>CRC</b><span>2 B · LE</span></div>
+      </div>
+      <div class="crc-bracket">CRC-16/CCITT-FALSE 覆盖 LEN / SEQ / CMD / PAYLOAD，不覆盖 A5 5A</div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">CRC</div>
+          <h3>校验参数</h3>
+          <ul class="clean">
+            <li>多项式 <code>0x1021</code></li>
+            <li>初值 <code>0xFFFF</code></li>
+            <li>不反射、不异或输出</li>
+            <li>测试向量：<code>"123456789"</code> → <code>0x29B1</code></li>
+            <li>低字节先发送</li>
+          </ul>
+        </div>
+        <div class="card teal">
+          <div class="tag">REPLY</div>
+          <h3>回复规则</h3>
+          <ul class="clean">
+            <li>请求 CMD 的 bit7=0</li>
+            <li>回复 CMD = 请求 CMD | 0x80</li>
+            <li>回复沿用请求 SEQ</li>
+            <li>收到 bit7=1 的帧不再回复，避免互相应答</li>
+            <li>命令幂等；无去重窗口</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>命令表</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>CMD</th><th>名称</th><th>请求负载</th><th>正常回复</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0x01</td><td>PING</td><td>空</td><td><code>00</code> + <code>"PONG"</code></td></tr>
+            <tr><td class="num">0x02</td><td>LED_SET</td><td><code>00</code> 关 / <code>01</code> 开</td><td><code>00</code></td></tr>
+            <tr><td class="num">0x03</td><td>STATUS</td><td>空</td><td><code>00 known state</code></td></tr>
+            <tr><td class="num">0x04</td><td>STATS</td><td>空</td><td><code>00</code> + 13 字节计数器</td></tr>
+            <tr><td class="num">0x90</td><td>EVENT_STATUS</td><td>—</td><td>主动上报，独立序号</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>STATS 负载布局</h3>
+      <div class="frame" aria-label="STATS 负载">
+        <div class="byte cmd"><b>STATUS</b><span>1 B · 0</span></div>
+        <div class="byte payload"><b>FRAMES</b><span>u32 LE</span></div>
+        <div class="byte payload"><b>IO_ERRORS</b><span>u32 LE</span></div>
+        <div class="byte payload"><b>PARTIALS</b><span>u32 LE</span></div>
+        <div class="byte seq"><b>REPORT_SEQ</b><span>u8</span></div>
+      </div>
+
+      <div class="callout note" data-label="示例帧">
+        <p><code>PING</code> 请求：<code>A5 5A 00 01 01 CRC</code>；<code>LED_SET(on)</code>：<code>A5 5A 01 02 02 01 CRC</code>。完整示例与 CRC 可在 Host 演示程序和 HIL 脚本中看到。</p>
+      </div>
+
+      <div class="callout warn" data-label="协议边界">
+        <p>当前协议没有版本、地址、ACK、重传和去重。单设备、短帧、幂等命令下足够；多设备或可靠传输需求出现时，应重新设计帧，而不是继续往当前格式里塞字段。</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ 06 -->
+    <section class="section reveal" id="s06">
+      <div class="section-head">
+        <div class="sec-num">06</div>
+        <div>
+          <div class="sec-kicker">Ports &amp; Board</div>
+          <h2>端口、板级与 DMA</h2>
+          <p class="sec-intro">端口负责把统一接口接到具体平台；板级只决定“这块板子的引脚、时钟和外设实例”。DMA 是默认路径，IT 是可回退路径。</p>
+        </div>
+      </div>
+
+      <h3>当前板级配置</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>项目</th><th>值</th><th>备注</th></tr></thead>
+          <tbody>
+            <tr><td>MCU</td><td>STM32F407VET6</td><td>512 KB Flash / 128 KB SRAM / 64 KB CCM</td></tr>
+            <tr><td>系统时钟</td><td>HSI 16 MHz，无 PLL</td><td>改 PLL 后必须重新配置 HAL tick</td></tr>
+            <tr><td>LED</td><td>PE2，高电平点亮</td><td>上电先置低</td></tr>
+            <tr><td>串口</td><td>USART1，PA9/PA10，AF7，115200 8N1</td><td>测试配置，需核对实际接线</td></tr>
+            <tr><td>缓冲</td><td>RX 512 B / TX ring 512 B / TX chunk 64 B</td><td>DMA RX 额外 256 B</td></tr>
+            <tr><td>DMA</td><td>RX DMA2_Stream2/Ch4；TX DMA2_Stream7/Ch4</td><td>仅 USART1；默认开启</td></tr>
+            <tr><td>1.8" TFT</td><td>ST7735S 128×160，SPI1</td><td>PA5=SCL、PA7=SDA、PA4=CS、PA6=DC、PA3=RES、PA2=BL</td></tr>
+            <tr><td>TFT 参数</td><td>偏移 X=2/Y=1，BGR 关，INVERT 关，BL 高有效</td><td>实测色条与头像显示正常</td></tr>
+            <tr><td>看门狗</td><td>IWDG 默认关闭</td><td>调试器暂停时会停止刷新</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="split">
+        <div>
+          <h3>非阻塞 TX 的关键语义</h3>
+          <ul class="clean">
+            <li><code>write</code> 只负责把字节复制进 TX ring，并返回 accepted。</li>
+            <li>端口 peek 一个 chunk，启动 DMA 或 IT 发送；发送完成前不覆盖 chunk。</li>
+            <li>完成回调消费已发送字节，并自动泵下一段。</li>
+            <li>ring 满时返回 <code>EAGAIN</code>，应用只重试后缀。</li>
+            <li>accepted 不代表物理线路完成；这是 io.h 契约的一部分。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>错误分类</h3>
+          <ul class="clean">
+            <li><strong>ORE</strong>：RX overrun，数据已丢，置 <code>loss</code> 并让 parser 复位。</li>
+            <li><strong>FE/NE/PE</strong>：只丢一个坏字节，不整个清空 ring。</li>
+            <li><strong>DMA 错误</strong>：记录 <code>tx_errors</code>，保留 ring 中的待发数据。</li>
+            <li>UART 端口有 <code>rx_line_errors</code>、<code>rx_overrun_errors</code>、<code>tx_errors</code> 计数器。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>可选设备与能力查询</h3>
+      <p><code>fw_demo_init()</code> 只强制要求 stream 和 clock。没有 LED 的板子可以传空的 <code>indicator</code>，此时 <code>LED_SET</code> 会回复状态 3；<code>board_capabilities()</code> 暴露 indicator/console 是否存在。</p>
+
+      <h3>1.8 寸 TFT：ST7735S 128×160</h3>
+      <p>屏幕是 4 线 SPI 模块（GND/VCC/SCL/SDA/RES/DC/CS/BL），不是 RGB 并口。当前默认接线：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>LCD</th><th>MCU</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>SCL</td><td>PA5</td><td>SPI1 SCK，AF5</td></tr>
+            <tr><td>SDA</td><td>PA7</td><td>SPI1 MOSI，AF5</td></tr>
+            <tr><td>CS</td><td>PA4</td><td>片选，低有效</td></tr>
+            <tr><td>DC</td><td>PA6</td><td>命令/数据选择</td></tr>
+            <tr><td>RES</td><td>PA3</td><td>硬件复位</td></tr>
+            <tr><td>BL</td><td>PA2</td><td>背光，高有效</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="code-card">
+        <div class="code-head"><span class="lang">c</span><span class="file">framework/ports/stm32f4/include/fw/st7735.h · API</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>st7735_t *lcd = board_lcd();
+
+st7735_fill_screen(lcd, st7735_rgb565(0, 0, 0));
+st7735_fill_rect(lcd, 0, 0, 128, 40, st7735_rgb565(255, 0, 0));
+st7735_draw_pixel(lcd, 10, 10, st7735_rgb565(0, 255, 0));
+st7735_draw_text(lcd, 4, 4, "HANDGLOVE", white, black, 2);
+st7735_draw_image(lcd, 0, 0, 128, 160, g_avatar_128x160);
+st7735_set_backlight(lcd, true);
+st7735_demo(lcd);   /* 红/绿/蓝/白色条 */</code></pre>
+      </div>
+      <ul class="clean">
+        <li>文字：5×8 ASCII 字体，<code>scale=1..4</code>，支持 <code>\n</code> 和自动换行。</li>
+        <li>图片：RGB565 数组，按行发送；当前示例图在 <code>framework/app/assets/avatar_128x160.c</code>，约 40 KB Flash。</li>
+        <li>启动画面：<code>BOARD_LCD_BOOT_IMAGE=1</code> 显示头像；<code>0</code> 色条；<code>2</code> 纯白诊断。</li>
+        <li>文字叠加：<code>BOARD_LCD_BOOT_TEXT=0</code> 当前关闭；改 1 可在图片底部显示文字。</li>
+        <li>屏幕初始化失败不阻止串口/协议运行；调试可看 <code>g_lcd_status</code> / <code>g_lcd_ready</code>。</li>
+      </ul>
+
+      <h3>故障转储与看门狗</h3>
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">FAULT</div>
+          <h3><code>g_fault_dump</code></h3>
+          <p>记录 CFSR/HFSR/MMFAR/BFAR、MSP/PSP 和 IPSR；GCC 的 HardFault 还会保存异常栈帧（含 faulting PC/LR）。当前位于 <code>.bss</code>，看门狗复位后会被清空。</p>
+        </div>
+        <div class="card">
+          <div class="tag">WATCHDOG</div>
+          <h3>IWDG</h3>
+          <p><code>BOARD_IWDG_ENABLED=0</code> 默认关闭。启用后主循环负责刷新；调试器暂停会停止刷新并触发复位。量产前需要实测超时。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ 07 -->
+    <section class="section reveal" id="s07">
+      <div class="section-head">
+        <div class="sec-num">07</div>
+        <div>
+          <div class="sec-kicker">Build &amp; Flash</div>
+          <h2>构建、烧录与工具链</h2>
+          <p class="sec-intro">Host、GCC、Keil AC5 三条入口共享同一份源文件清单。首次配置会拉取固定 commit 的 HAL/CMSIS/FreeRTOS，并应用受版本管理的启动栈补丁。</p>
+        </div>
+      </div>
+
+      <div class="tabs" data-tabs>
+        <div class="tab-btns" role="tablist">
+          <button class="tab-btn active" data-tab="host" type="button">Host · GCC</button>
+          <button class="tab-btn" data-tab="gcc" type="button">STM32 · ARM GCC</button>
+          <button class="tab-btn" data-tab="ac5" type="button">STM32 · Keil AC5</button>
+          <button class="tab-btn" data-tab="hil" type="button">HIL</button>
+        </div>
+        <div class="tab-panel active" data-panel="host">
+          <div class="code-card">
+            <div class="code-head"><span class="lang">bash</span><span class="file">PC simulation</span><button class="copy-btn" type="button">COPY</button></div>
+            <pre><code>cmake --preset host-debug
+cmake --build --preset host-debug
+ctest --preset host-debug --verbose</code></pre>
+          </div>
+          <p class="small">需要 CMake ≥ 3.21、Ninja、本机 GCC。Host 端口用内存 ring 和故障注入模拟设备；不模拟真实电气行为。</p>
+        </div>
+        <div class="tab-panel" data-panel="gcc">
+          <div class="code-card">
+            <div class="code-head"><span class="lang">bash</span><span class="file">ARM GCC · DMA default ON</span><button class="copy-btn" type="button">COPY</button></div>
+            <pre><code>cmake --preset f407-debug
+cmake --build --preset f407-debug
+# 产物: build/f407-debug/projects/stm32f407/fw_f407.hex
+# 回退 IT:
+cmake --preset f407-debug -DFW_UART_DMA=OFF
+cmake --build --preset f407-debug</code></pre>
+          </div>
+          <p class="small">ARM GCC 14.2.1 Debug 实测；默认 DMA。首次配置会从 GitHub 拉取固定版本依赖。</p>
+        </div>
+        <div class="tab-panel" data-panel="ac5">
+          <div class="code-card">
+            <div class="code-head"><span class="lang">bash</span><span class="file">Keil AC5 · DMA default ON</span><button class="copy-btn" type="button">COPY</button></div>
+            <pre><code>node tools/build-keil-ac5.mjs
+# 产物: build/keil-ac5/fw_f407.hex
+
+# 回退 IT: 把 manifest.json 的 defines 改为
+# "FW_STM32_UART_DMA=0"
+# 再重新运行上面的命令</code></pre>
+          </div>
+          <p class="small">默认工具目录为 <code>D:/keil5/stm32/ARM/ARMCC/bin</code>；可用 <code>--arm-dir</code> 或 <code>FW_ARMCC_BIN</code> 覆盖。</p>
+        </div>
+        <div class="tab-panel" data-panel="hil">
+          <div class="code-card">
+            <div class="code-head"><span class="lang">bash</span><span class="file">hardware-in-the-loop</span><button class="copy-btn" type="button">COPY</button></div>
+            <pre><code>python tests/hil/test_protocol.py --port COM16 --stats
+
+# 只读列出串口:
+python -c "import serial.tools.list_ports as l; [print(p.device, p.description) for p in l.comports()]"</code></pre>
+          </div>
+          <p class="small">需要 pyserial。HIL 覆盖上报、PING、LED/STATUS、未知命令、非法参数、噪声恢复、分片帧和 STATS。</p>
+        </div>
+      </div>
+
+      <h3>烧录</h3>
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">KEIL</div>
+          <h3>uVision / AC5</h3>
+          <p>打开 <code>projects/stm32f407/stm32f407ve.uvprojx</code>，选择 Debug，确认 CMSIS-DAP/ST-Link 和 Flash Download 配置后 Rebuild/Download。</p>
+        </div>
+        <div class="card">
+          <div class="tag">PYOCD</div>
+          <h3>命令行烧录</h3>
+          <p><code>pyocd flash -t stm32f407ve build/keil-ac5/fw_f407.hex</code>。烧录后可用 <code>pyocd cmd</code> 读取 NVIC 或恢复运行。</p>
+        </div>
+      </div>
+
+      <h3>尺寸实测</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>配置</th><th>Flash</th><th>SRAM</th></tr></thead>
+          <tbody>
+            <tr><td>GCC 协议 · DMA + LCD + 图片</td><td class="num">78,476 B</td><td class="num">12,048 B</td></tr>
+            <tr><td>AC5 协议 · DMA + LCD + 图片</td><td class="num">68,068 B</td><td class="num">12,680 B</td></tr>
+            <tr><td>GCC hello · DMA + LCD + 图片</td><td class="num">70,092 B</td><td class="num">6,520 B</td></tr>
+            <tr><td>AC5 hello · DMA + LCD + 图片</td><td class="num">61,868 B</td><td class="num">7,224 B</td></tr>
+            <tr><td>图片资产</td><td class="num">约 40 KB</td><td class="num">0 B</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn" data-label="依赖目录的坑">
+        <p>不要在网络不可用时用新的 build 目录重新触发 FetchContent：失败的 clone 可能清空 <code>third_party/hal-src</code>。优先复用已有构建目录，或先确保依赖目录完整。若被清空，可从 <code>build/f407-debug/_deps/hal-src</code> 恢复锁定 commit。</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ 08 -->
+    <section class="section reveal" id="s08">
+      <div class="section-head">
+        <div class="sec-num">08</div>
+        <div>
+          <div class="sec-kicker">User Manual</div>
+          <h2>使用手册：按任务操作</h2>
+          <p class="sec-intro">下面不是 API 列表，而是“我要做某件事”的操作路径。每一步都给出改哪里、怎么验证。</p>
+        </div>
+      </div>
+
+      <h3>8.1 五分钟跑起来</h3>
+      <div class="steps">
+        <div class="step"><div><h4>先在 Host 验证</h4><p>运行 <code>cmake --preset host-debug</code>、构建、<code>ctest</code>。应看到 5/5 通过。</p></div></div>
+        <div class="step"><div><h4>构建目标固件</h4><p>AC5 用 <code>node tools/build-keil-ac5.mjs</code>；GCC 用 <code>cmake --preset f407-debug</code> + build。</p></div></div>
+        <div class="step"><div><h4>烧录</h4><p>Keil 直接 Download，或 <code>pyocd flash -t stm32f407ve ...</code>。</p></div></div>
+        <div class="step"><div><h4>跑 HIL</h4><p><code>python tests/hil/test_protocol.py --port COM16 --stats</code>。看到 PASS 即完成。</p></div></div>
+      </div>
+
+      <h3>8.2 用串口助手操作</h3>
+      <p>打开 115200、8N1，并切到 <strong>HEX 显示/发送</strong>。上电后无需请求，每 1 秒会看到一帧主动上报，例如：</p>
+      <div class="code-card">
+        <div class="code-head"><span class="lang">hex</span><span class="file">autonomous 0x90 · 示例</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>A5 5A 03 00 90 00 00 00 6F 06
+│  │  │  │  │  └────┬────┘ └─┬─┘
+│  │  │  │  │       │        └ CRC
+│  │  │  │  │       └ payload: status/known/state
+│  │  │  │  └ CMD = 0x90
+│  │  │  └ SEQ
+│  │  └ LEN = 3
+│  └ 5A
+└ A5</code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>操作</th><th>发送（HEX）</th><th>应收到（HEX，SEQ 对应）</th></tr></thead>
+          <tbody>
+            <tr><td>PING</td><td><code>A5 5A 00 01 01 8C EF</code></td><td><code>A5 5A 05 01 81 00 50 4F 4E 47 26 02</code></td></tr>
+            <tr><td>LED 开</td><td><code>A5 5A 01 02 02 01 57 EA</code></td><td><code>A5 5A 01 02 82 00 EE E1</code></td></tr>
+            <tr><td>STATUS</td><td><code>A5 5A 00 03 03 AC A9</code></td><td><code>A5 5A 03 03 83 00 01 00 F7 5B</code>（LED 已开）</td></tr>
+            <tr><td>STATS</td><td><code>A5 5A 00 04 04 DC 40</code></td><td><code>A5 5A 0E 04 84 00 ...</code> 后接计数器</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">回复的 SEQ 与请求一致；CMD 的 bit7 为 1。状态码在 payload 第 1 字节：0 成功、1 参数错误、2 未知命令、3 输出设备不可用。示例帧使用的 SEQ 分别是 1/2/3/4，实际使用可换成任意 0..255。</p>
+
+      <h3>8.3 修改 LCD 显示</h3>
+      <p>LCD 驱动位于 <code>framework/ports/stm32f4/st7735.c</code>，板级装配在
+      <code>framework/boards/stm32f407ve/board.c</code>。常用改动：</p>
+      <div class="steps">
+        <div class="step"><div><h4>改接线或引脚</h4><p>修改 <code>board_config.h</code> 的 <code>BOARD_LCD_*</code>；SPI1 的 SCK/MOSI 必须使用 AF5。</p></div></div>
+        <div class="step"><div><h4>选启动画面</h4><p><code>BOARD_LCD_BOOT_IMAGE</code>：1=头像，0=色条，2=纯白诊断。</p></div></div>
+        <div class="step"><div><h4>开关文字</h4><p><code>BOARD_LCD_BOOT_TEXT=1</code> 时在图片底部叠加 <code>HANDGLOVE</code>；当前为 0，不显示文字。</p></div></div>
+        <div class="step"><div><h4>替换图片</h4><p>把图片中心裁剪成 128:160，缩放为 128×160，转成 RGB565 数组；替换 <code>framework/app/assets/avatar_128x160.c</code>，保持头文件的宽高宏。</p></div></div>
+        <div class="step"><div><h4>确认颜色/偏移</h4><p>当前参数：X/Y 偏移 2/1、<code>MADCTL=0xC0</code>、<code>INVERT=0</code>、BL 高有效。颜色不对时先看 <code>st7735_demo()</code> 色条。</p></div></div>
+      </div>
+      <div class="callout note" data-label="Keil 工程组织">
+        <p>uVision 分组已按 <code>framework/core</code>、<code>framework/components/protocol</code>、
+        <code>framework/app</code>、<code>framework/boards/stm32f407ve</code>、
+        <code>framework/ports</code>、<code>third_party/*</code>、<code>project/stm32f407</code> 排列。
+        LCD 驱动在 <code>framework/ports</code>，图片资产在 <code>framework/app</code>；
+        文件名已按实际路径修正。</p>
+      </div>
+
+      <h3>8.4 新增一个命令</h3>
+      <p>以新增 <code>LED_TOGGLE</code> 为例，按以下顺序改：</p>
+      <div class="steps">
+        <div class="step"><div><h4>定义命令码</h4><p>在 <code>framework/app/include/fw/demo_app.h</code> 增加 <code>#define FW_CMD_LED_TOGGLE 0x05U</code>，并更新命令注释。</p></div></div>
+        <div class="step"><div><h4>写 handler</h4><p>handler 只做业务：校验参数、调用 indicator、更新应用状态、填写 reply。</p></div></div>
+        <div class="step"><div><h4>加入分发表</h4><p>在 <code>command_table[]</code> 增加一项。未知命令仍会落到统一状态码 2。</p></div></div>
+        <div class="step"><div><h4>补测试与文档</h4><p>Host 单测覆盖正常/非法参数；HIL 增加对应步骤；README 协议表同步。</p></div></div>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span class="lang">c</span><span class="file">framework/app/demo_app.c · 添加 handler 与表项</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>static void cmd_led_toggle(fw_demo_app_t *app,
+                           const fw_message_t *request,
+                           fw_message_t *reply)
+{
+    if (request-&gt;length != 0U) {
+        reply-&gt;payload[0] = 1U;
+        return;
+    }
+    /* 读取当前软件记录，翻转后写回 */
+    if (fw_indicator_set(&amp;app-&gt;indicator, !app-&gt;led_requested_on) == FW_OK) {
+        app-&gt;led_known = true;
+        app-&gt;led_requested_on = !app-&gt;led_requested_on;
+    } else {
+        reply-&gt;payload[0] = 3U;
+    }
+}
+
+static const fw_demo_command_t command_table[] = {
+    { FW_CMD_PING, cmd_ping },
+    { FW_CMD_LED_SET, cmd_led_set },
+    { FW_CMD_STATUS, cmd_status },
+    { FW_CMD_STATS, cmd_stats },
+    { FW_CMD_LED_TOGGLE, cmd_led_toggle }
+};</code></pre>
+      </div>
+
+      <h3>8.5 新增一个设备/端口</h3>
+      <div class="steps">
+        <div class="step"><div><h4>定义 ops + ctx</h4><p>按 <code>fw_stream_ops_t</code> 或 <code>fw_indicator_ops_t</code> 实现函数表；ctx 由你自己拥有，生命周期覆盖所有调用。</p></div></div>
+        <div class="step"><div><h4>实现契约</h4><p>read 非阻塞、容量受限、错误语义正确；write 报告真实 accepted、部分写入可重试、不保留调用者缓冲区。</p></div></div>
+        <div class="step"><div><h4>接 Host conformance</h4><p>用 <code>tests/conformance</code> 的适配器跑 17 条；缺少故障 hook 的条款会 SKIP，不会被伪装成通过。</p></div></div>
+        <div class="step"><div><h4>板级装配</h4><p>在 <code>board_console()</code>/<code>board_indicator()</code> 返回你的设备；不要在 app 里直接包含平台头。</p></div></div>
+        <div class="step"><div><h4>目标验证</h4><p>跑 HIL；如果更换的是 UART，确认 DMA/IT 路径、IRQ 优先级、缓冲容量和错误计数。</p></div></div>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span class="lang">c</span><span class="file">stream port 骨架</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code>static fw_status_t my_read(void *ctx, uint8_t *data,
+                           size_t capacity, size_t *count)
+{
+    *count = 0U;
+    if (ctx == NULL) return FW_EINVAL;
+    /* 非阻塞：没有数据时返回 EAGAIN, *count = 0 */
+    return FW_EAGAIN;
+}
+
+static fw_status_t my_write(void *ctx, const uint8_t *data,
+                            size_t length, size_t *count,
+                            uint32_t timeout_ms)
+{
+    *count = 0U;
+    if (ctx == NULL) return FW_EINVAL;
+    /* 报告真实 accepted；不要保留 data 指针 */
+    return FW_OK;
+}
+
+static const fw_stream_ops_t my_ops = { my_read, my_write };</code></pre>
+      </div>
+
+      <h3>8.6 换板 / 换引脚 / 换时钟</h3>
+      <ul class="checklist">
+        <li>修改 <code>framework/boards/stm32f407ve/board_config.h</code> 的 LED、UART 实例、TX/RX 引脚、AF、IRQ 优先级和缓冲容量。</li>
+        <li>如果换 UART 实例，DMA stream/channel/IRQ 映射必须一起改；当前默认映射只针对 USART1。</li>
+        <li>如果改 PLL/系统频率，修改 <code>board.c</code> 后必须更新 HAL tick，否则 <code>HAL_Delay</code> 和时间基准会错。</li>
+        <li>更新 <code>projects/stm32f407/manifest.json</code> 的源文件、include、define，保证 GCC 与 Keil 两条链一致。</li>
+        <li>跑 Host 测试、目标 HIL、DMA 压力测试，并记录新的 Flash/RAM 尺寸。</li>
+      </ul>
+
+      <h3>8.7 调试观察点</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>观察点</th><th>看什么</th></tr></thead>
+          <tbody>
+            <tr><td><code>g_board_status</code></td><td>板级初始化结果；非 0 表示 setup 失败</td></tr>
+            <tr><td><code>g_app_status</code></td><td>应用装配结果；定位是 init、limits、console 还是 start 失败</td></tr>
+            <tr><td><code>g_poll_status</code></td><td>最近一次 poll 返回值；EAGAIN 是正常背压</td></tr>
+            <tr><td><code>g_poll_error_count</code></td><td>非 EAGAIN 的 poll 错误累计</td></tr>
+            <tr><td><code>g_min_free_stack_words</code></td><td>任务栈高水位，单位是 32 位栈字</td></tr>
+            <tr><td><code>g_fault_dump</code></td><td>HardFault 的 CFSR/HFSR/MMFAR/BFAR、MSP/PSP、栈帧</td></tr>
+            <tr><td><code>g_lcd_status</code></td><td>LCD 初始化结果；非 0 表示失败</td></tr>
+            <tr><td><code>g_lcd_ready</code></td><td>LCD 上下文是否可用</td></tr>
+            <tr><td><code>STATS</code></td><td>免调试器查看 frames、io_errors、partial_timeouts、report_seq</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span class="lang">bash</span><span class="file">pyOCD · 检查 DMA 中断是否使能</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code># DMA 开启时应看到:
+# 0xE000E104 = 0x04000020  (USART1 + DMA2_Stream2)
+# 0xE000E108 = 0x00000040  (DMA2_Stream7)
+pyocd cmd -t stm32f407ve --color never \
+  -c "read32 0xE000E104" \
+  -c "read32 0xE000E108" \
+  -c "go"</code></pre>
+      </div>
+
+      <h3>8.8 串口工具与 HIL 冲突</h3>
+      <p>串口助手和 HIL 脚本不能同时占用同一个 COM 口。若 HIL 报 <code>PermissionError</code>，先关闭串口助手；若报 <code>FileNotFoundError</code>，先确认端口号（<code>COMx</code> 只是占位符）。</p>
+    </section>
+
+    <!-- ============================================================ 09 -->
+    <section class="section reveal" id="s09">
+      <div class="section-head">
+        <div class="sec-num">09</div>
+        <div>
+          <div class="sec-kicker">Verification</div>
+          <h2>验证与测试</h2>
+          <p class="sec-intro">验证链从 Host 到目标硬件逐层收紧：先证明业务正确，再证明协议正确，最后证明真实端口和 DMA 路径正确。</p>
+        </div>
+      </div>
+
+      <div class="grid-4">
+        <div class="card"><div class="tag">L1</div><h3>Host 单测</h3><p>业务、协议、ring、背压、回绕、错误恢复。</p></div>
+        <div class="card"><div class="tag">L2</div><h3>Conformance</h3><p>17 条接口契约 + 5 个故意违规端口。</p></div>
+        <div class="card"><div class="tag">L3</div><h3>HIL</h3><p>真实串口的 8 项协议行为。</p></div>
+        <div class="card"><div class="tag">L4</div><h3>Stress</h3><p>500 次 PING，观察 io_errors/partial_timeouts。</p></div>
+      </div>
+
+      <h3>当前实测</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>检查</th><th>结果</th></tr></thead>
+          <tbody>
+            <tr><td>Host CTest</td><td><span class="badge ok">5/5 PASS</span></td></tr>
+            <tr><td>单元测试</td><td>13 组 / <span class="num">25,256</span> 次断言</td></tr>
+            <tr><td>Host conformance</td><td>17 条通过；5 个 seeded violation 均被点名</td></tr>
+            <tr><td>HIL（COM16）</td><td>8 项通过：上报/PING/LED/STATUS/未知命令/非法参数/噪声/分片/STATS</td></tr>
+            <tr><td>DMA 压力</td><td>GCC / AC5 各 500 次 PING；io_errors=0、partial_timeouts=0</td></tr>
+            <tr><td>DMA NVIC</td><td>ISER1=0x04000020；ISER2=0x00000040</td></tr>
+            <tr><td>ST7735S 色条</td><td>红/绿/蓝/白顺序与背光已在实屏确认</td></tr>
+            <tr><td>ST7735S 图片</td><td>128×160 头像已在实屏显示；启动文字当前关闭</td></tr>
+            <tr><td>AC5 构建</td><td>0 warning</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout note" data-label="HIL 覆盖范围">
+        <p>HIL 验证的是“正常协议业务”与 DMA 路径，不是端口契约的逐条认证。目标侧 conformance 需要 loopback 测试固件和故障注入 hook，当前未做。</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ 10 -->
+    <section class="section reveal" id="s10">
+      <div class="section-head">
+        <div class="sec-num">10</div>
+        <div>
+          <div class="sec-kicker">Porting</div>
+          <h2>移植检查表</h2>
+          <p class="sec-intro">换芯片、换板子或新增端口时，按这张表逐项确认。真正的移植风险通常不在业务代码，而在时钟、引脚、IRQ 优先级和缓冲语义。</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>区域</th><th>检查项</th><th>验收</th></tr></thead>
+          <tbody>
+            <tr><td>板级</td><td>LED 引脚/有效电平；UART 实例/TX/RX/AF；IRQ 优先级；RX/TX 容量</td><td>上电 LED 熄灭；串口能收发</td></tr>
+            <tr><td>时钟</td><td>HSI/HSE/PLL；改频后重新配置 HAL tick</td><td><code>HAL_Delay</code> 与时间基准正确</td></tr>
+            <tr><td>DMA</td><td>USART 与 DMA stream/channel 匹配；IRQ 使能；circular + IDLE</td><td>NVIC 位正确；HIL/压力测试通过</td></tr>
+            <tr><td>LCD</td><td>SPI 实例/AF/CS/DC/RES/BL；面板偏移；MADCTL/INVERT；图片尺寸</td><td>色条顺序正确；图片/文字无花屏</td></tr>
+            <tr><td>端口</td><td>read 非阻塞/容量受限；write accepted/部分进度/不保留缓冲</td><td>Host conformance 通过</td></tr>
+            <tr><td>错误</td><td>ORE 与 FE/NE/PE 区分；loss 后 parser 复位</td><td>噪声/溢出后能恢复新帧</td></tr>
+            <tr><td>并发</td><td>单任务拥有设备；ISR 不调用上层 poll/write</td><td>无共享设备竞态</td></tr>
+            <tr><td>资源</td><td>map 尺寸；任务栈高水位；主栈余量</td><td>预算内，无栈溢出</td></tr>
+            <tr><td>构建</td><td>manifest、CMake、Keil 工程三处一致</td><td><code>source_manifest_sync</code> 通过</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>常见移植坑</h3>
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">CLOCK</div>
+          <h3>改 PLL 忘记 tick</h3>
+          <p>SystemCoreClock 变了但 SysTick/HAL tick 没重配，会表现为延时错误、超时异常、FreeRTOS 节拍错误。</p>
+        </div>
+        <div class="card">
+          <div class="tag">IRQ</div>
+          <h3>优先级不满足 FromISR</h3>
+          <p>调用 FreeRTOS FromISR API 的 ISR，优先级数值必须不低于 <code>configMAX_SYSCALL_INTERRUPT_PRIORITY</code>。当前 UART/DMA 为 6，上限为 5。</p>
+        </div>
+        <div class="card">
+          <div class="tag">DMA</div>
+          <h3>映射抄错 stream</h3>
+          <p>USART1 RX/TX 的 DMA stream/channel/IRQ 必须与参考手册一致；否则表现为“能编译、能发、收不到”或 NVIC 位不对。</p>
+        </div>
+        <div class="card">
+          <div class="tag">BUFFER</div>
+          <h3>把 CCM 给 DMA</h3>
+          <p>STM32F4 的 DMA 不能访问 CCM。DMA 缓冲必须放在主 SRAM；当前设计已把 256 B RX 缓冲放在普通内存。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ 11 -->
+    <section class="section reveal" id="s11">
+      <div class="section-head">
+        <div class="sec-num">11</div>
+        <div>
+          <div class="sec-kicker">Troubleshooting</div>
+          <h2>故障排查</h2>
+          <p class="sec-intro">先区分“端口打不开”“没有数据”“协议不对”“DMA 没生效”和“板级初始化失败”，再逐层排查。</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>可能原因</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td><code>FileNotFoundError</code> 打开 COMx</td><td>端口号是占位符/设备未枚举</td><td>列出串口，换成实际 COM 号</td></tr>
+            <tr><td><code>PermissionError</code></td><td>串口助手或其它进程占用</td><td>关闭占用程序后再跑 HIL</td></tr>
+            <tr><td>串口无任何数据</td><td>模式不对、波特率不对、TX/RX 未交叉、未共地</td><td>确认 <code>APP_UART_HELLO_TEST=0</code>、115200 8N1、PA9→适配器 RX、PA10←适配器 TX</td></tr>
+            <tr><td>HIL 收不到 0x90</td><td>固件仍是 hello 模式或未复位</td><td>改回协议模式，重新构建/烧录/复位</td></tr>
+            <tr><td>HIL 在 STATS 失败</td><td>固件较旧，没有 0x04 命令</td><td>烧录当前固件，或先不加 <code>--stats</code></td></tr>
+            <tr><td>DMA 看起来没生效</td><td>构建开关未开/映射不对</td><td>检查 <code>FW_UART_DMA</code>、manifest define；读 NVIC 位</td></tr>
+            <tr><td>LED 控制失败</td><td>板子无 indicator 或端口未 ready</td><td>LED_SET 返回状态 3；检查 <code>BOARD_LED_ENABLED</code> 和 PE2</td></tr>
+            <tr><td>LCD 黑屏/白闪后黑</td><td>背光电平、VCC、BL 接线</td><td>先烧色条；当前 BL 高有效（<code>BOARD_LCD_BL_ACTIVE_HIGH=1</code>）</td></tr>
+            <tr><td>LCD 颜色像底片</td><td>INVERT 反相</td><td>翻转 <code>BOARD_LCD_INVERT</code></td></tr>
+            <tr><td>LCD 红蓝互换</td><td>BGR 位错误</td><td><code>MADCTL</code> 在 0xC0/0xC8 间切换</td></tr>
+            <tr><td>LCD 右边/底部花屏</td><td>可见区偏移</td><td>当前 X/Y=2/1；若花屏移到左上则改 0/0</td></tr>
+            <tr><td>LCD 初始化失败</td><td>SPI/GPIO/控制器不匹配</td><td>看 <code>g_lcd_status</code>；检查 PA5/PA7/CS/DC/RES</td></tr>
+            <tr><td>HardFault</td><td>空指针、栈溢出、非法外设访问</td><td>检查 <code>g_fault_dump</code> 的 CFSR/HFSR/PC</td></tr>
+            <tr><td>周期性复位</td><td>IWDG 已启用但主循环未刷新/调试暂停</td><td>先关闭 IWDG 调试；检查刷新路径</td></tr>
+            <tr><td>AC5 构建找不到工具</td><td>默认路径不匹配</td><td>用 <code>--arm-dir</code> 或 <code>FW_ARMCC_BIN</code></td></tr>
+            <tr><td>依赖目录被清空</td><td>FetchContent 网络失败</td><td>从 <code>build/f407-debug/_deps</code> 恢复；复用已有构建目录</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>常用命令</h3>
+      <div class="code-card">
+        <div class="code-head"><span class="lang">bash</span><span class="file">cheat sheet</span><button class="copy-btn" type="button">COPY</button></div>
+        <pre><code># 列出串口
+python -c "import serial.tools.list_ports as l; [print(p.device, p.description) for p in l.comports()]"
+
+# 跑 HIL
+python tests/hil/test_protocol.py --port COM16 --stats
+
+# 烧录 AC5 产物
+pyocd flash -t stm32f407ve build/keil-ac5/fw_f407.hex
+
+# 读 DMA 中断使能
+pyocd cmd -t stm32f407ve --color never \
+  -c "read32 0xE000E104" -c "read32 0xE000E108" -c "go"</code></pre>
+      </div>
+
+      <details>
+        <summary>为什么 PA9/PA10 短接后看不到“结果”？</summary>
+        <p>短接只是把 TX 接回 RX，不会自动运行测试。当前正常固件会收到自己发出的 <code>0x90</code> 帧，并按 bit7=1 忽略；PC 只能看到二进制帧，不会看到 PASS/FAIL。目标侧 conformance 需要单独的测试固件。</p>
+      </details>
+      <details>
+        <summary>为什么建议复用已有 build 目录？</summary>
+        <p>FetchContent 在配置阶段会检查并可能重新 clone 依赖。网络失败时，新的构建目录可能把现有依赖目录清空。复用已有目录或先确认网络/依赖完整性更安全。</p>
+      </details>
+      <details>
+        <summary>DMA 失败会自动回退到 IT 吗？</summary>
+        <p>只有在 DMA 初始化失败时，board 会重新用 IT 初始化。运行期 DMA 故障不会自动切换；需要时用构建开关回到 IT，并重新烧录。</p>
+      </details>
+    </section>
+
+    <!-- ============================================================ 12 -->
+    <section class="section reveal" id="s12">
+      <div class="section-head">
+        <div class="sec-num">12</div>
+        <div>
+          <div class="sec-kicker">Boundaries &amp; Roadmap</div>
+          <h2>边界与路线图</h2>
+          <p class="sec-intro">明确“不做什么”和“下一步做什么”，比继续堆功能更能保持框架的可维护性。</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">DONE</div>
+          <h3>已经完成</h3>
+          <ul class="clean">
+            <li>分层依赖与静态分配。</li>
+            <li>Stream / Indicator / Clock 契约与 Host conformance。</li>
+            <li>协议、命令表、STATS、周期上报。</li>
+            <li>TX ring + IT/DMA；USART1 RX DMA circular + IDLE。</li>
+            <li>事件驱动唤醒；板级 capability；可选 indicator。</li>
+            <li>HardFault 转储、IWDG 开关、错误分类。</li>
+            <li>ST7735S 128×160 LCD：色条、图片、5×8 文字、背光控制。</li>
+            <li>HIL、压力测试、CI 骨架、文档链接检查。</li>
+          </ul>
+        </div>
+        <div class="card teal">
+          <div class="tag">NOT DONE</div>
+          <h3>尚未完成</h3>
+          <ul class="clean">
+            <li>目标侧 17 条 conformance（已按需求跳过）。</li>
+            <li>USART2/3/其他串口的 DMA 映射。</li>
+            <li>多任务共享设备、设备注册表、事件总线、日志服务。</li>
+            <li>Bootloader/OTA、协议版本/ACK/地址。</li>
+            <li>故障转储持久化（当前 <code>.bss</code> 会被复位清空）。</li>
+            <li>LCD 横屏旋转 API、中文点阵、图片压缩。</li>
+            <li>AC6 适配、更多板级 profile。</li>
+            <li>Git 基线、GitHub 推送。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>建议的下一步</h3>
+      <div class="steps">
+        <div class="step"><div><h4>故障记录持久化</h4><p>把 <code>g_fault_dump</code> 放到 <code>.noinit</code> 或备份 SRAM，看门狗复位后仍可读取。</p></div></div>
+        <div class="step"><div><h4>扩展 STATS</h4><p>增加端口错误计数、任务栈高水位、DMA 使能状态，减少对调试器的依赖。</p></div></div>
+        <div class="step"><div><h4>补其他 USART 的 DMA 映射</h4><p>把 stream/channel/IRQ 表扩展到 USART2/3，避免板级硬编码为单实例。</p></div></div>
+        <div class="step"><div><h4>扩展 LCD 能力</h4><p>增加横屏旋转、中文点阵、RLE/分块图片；当前启动不显示文字。</p></div></div>
+        <div class="step"><div><h4>决定是否做目标侧 conformance</h4><p>如果要做，先写独立测试固件和 loopback adapter，再把 17 条真正跑满。</p></div></div>
+        <div class="step"><div><h4>建立 git 基线并推送</h4><p>当前整个目录仍未跟踪；CI 需要项目位于仓库根，或把 workflow 放到父仓库根。</p></div></div>
+      </div>
+
+      <div class="callout note" data-label="设计提醒">
+        <p>这套框架最大的优点是克制。不要在没有第二个任务、第二个设备或真实需求之前，引入事件总线、设备注册表、动态内存或复杂协议。先让边界和测试保持清晰。</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ APPENDIX -->
+    <section class="section reveal" id="appendix">
+      <div class="section-head">
+        <div class="sec-num">A</div>
+        <div>
+          <div class="sec-kicker">Appendix</div>
+          <h2>附录：文件地图与术语</h2>
+          <p class="sec-intro">快速定位代码和概念。文件路径相对于项目根目录。</p>
+        </div>
+      </div>
+
+      <h3>文件地图</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>文件</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>framework/include/fw/io.h</code></td><td>stream / indicator / clock 契约</td></tr>
+            <tr><td><code>framework/include/fw/ring.h</code></td><td>ring 接口，含 peek</td></tr>
+            <tr><td><code>framework/include/fw/status.h</code></td><td>统一状态码</td></tr>
+            <tr><td><code>framework/components/protocol/</code></td><td>帧编码、parser、CRC</td></tr>
+            <tr><td><code>framework/app/demo_app.c</code></td><td>命令表、STATS、上报、poll</td></tr>
+            <tr><td><code>framework/ports/stm32f4/uart.c</code></td><td>UART IT/DMA、TX ring、错误分类</td></tr>
+            <tr><td><code>framework/ports/stm32f4/gpio.c</code></td><td>LED indicator</td></tr>
+            <tr><td><code>framework/ports/stm32f4/st7735.c</code></td><td>ST7735S 初始化、填充、文字、图片</td></tr>
+            <tr><td><code>framework/ports/stm32f4/st7735_font.h</code></td><td>5×8 ASCII 字模</td></tr>
+            <tr><td><code>framework/app/assets/avatar_128x160.c</code></td><td>128×160 RGB565 示例图片</td></tr>
+            <tr><td><code>framework/app/include/fw/avatar_128x160.h</code></td><td>图片宽高与数组声明</td></tr>
+            <tr><td><code>framework/ports/host/host.c</code></td><td>Host 模拟与故障注入</td></tr>
+            <tr><td><code>framework/boards/stm32f407ve/board_config.h</code></td><td>引脚、时钟、缓冲、DMA、IWDG</td></tr>
+            <tr><td><code>projects/stm32f407/main.c</code></td><td>装配、任务、事件 hook</td></tr>
+            <tr><td><code>projects/stm32f407/interrupts.c</code></td><td>UART/DMA IRQ、故障转储</td></tr>
+            <tr><td><code>projects/stm32f407/manifest.json</code></td><td>双工具链源文件/宏/路径清单</td></tr>
+            <tr><td><code>tests/host/test_main.c</code></td><td>13 组 Host 测试</td></tr>
+            <tr><td><code>tests/conformance/</code></td><td>17 条接口契约套件</td></tr>
+            <tr><td><code>tests/hil/test_protocol.py</code></td><td>真实串口 HIL</td></tr>
+            <tr><td><code>docs/architecture.md</code></td><td>Markdown 架构说明</td></tr>
+            <tr><td><code>docs/porting.md</code></td><td>移植指南</td></tr>
+            <tr><td><code>docs/hello-test.md</code></td><td>串口 bring-up 接线</td></tr>
+            <tr><td><code>docs/lcd.md</code></td><td>LCD 接线、API、颜色诊断</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>术语</h3>
+      <div class="grid-2">
+        <div class="card">
+          <div class="tag">A–M</div>
+          <ul class="clean">
+            <li><strong>accepted</strong>：端口已接管/复制字节，不等于物理线路完成。</li>
+            <li><strong>conformance</strong>：按接口契约逐条验证端口实现。</li>
+            <li><strong>ctx</strong>：设备实例上下文，由调用者拥有。</li>
+            <li><strong>HIL</strong>：Hardware-in-the-Loop，真实硬件串口测试。</li>
+            <li><strong>IDLE</strong>：UART 线路空闲事件，DMA 常用作“一帧结束”的提示。</li>
+            <li><strong>MADCTL</strong>：ST7735 的方向/镜像/BGR 控制寄存器值，当前为 0xC0。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="tag">N–Z</div>
+          <ul class="clean">
+            <li><strong>ops</strong>：函数表，设备操作的具体实现。</li>
+            <li><strong>RGB565</strong>：16 位颜色，R5/G6/B5；驱动按高字节先发。</li>
+            <li><strong>ST7735S</strong>：本板 1.8 寸 128×160 SPI TFT 控制器。</li>
+            <li><strong>PRIMASK</strong>：Cortex-M 全局中断屏蔽位，用于短临界区。</li>
+            <li><strong>ring</strong>：定长环形字节缓冲区。</li>
+            <li><strong>STATS</strong>：通过协议读取运行计数器的命令。</li>
+            <li><strong>stream</strong>：统一字节流抽象。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>文档元信息</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>项目</td><td>46.嵌入式框架设计1</td></tr>
+            <tr><td>目标</td><td>STM32F407VET6</td></tr>
+            <tr><td>工具链</td><td>ARM GCC 14.2.1 / ARMCC 5.06 update 5</td></tr>
+            <tr><td>RTOS</td><td>FreeRTOS V11.1.0</td></tr>
+            <tr><td>显示</td><td>ST7735S 128×160 SPI TFT（实时验证）</td></tr>
+            <tr><td>验证日期</td><td>2026-10-19</td></tr>
+            <tr><td>验证端口</td><td>COM16 · 115200 8N1</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+
+  <footer class="footer">
+    <div>
+      <div class="big">边界清晰，<br>比功能更多更重要。</div>
+      <div class="tiny" style="margin-top:10px">CONTRACT-FIRST · STATIC ALLOCATION · BOUNDED WORK</div>
+    </div>
+    <div class="meta">
+      FW MANUAL · v0.1<br>
+      VERIFIED ON TARGET · 2026.10.19<br>
+      SELF-CONTAINED HTML · NO CDN
+    </div>
+  </footer>
+</main>
+
+<button class="backtop" id="backtop" type="button" aria-label="回到顶部">↑</button>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var body = document.body;
+  var rail = document.getElementById("rail");
+  var scrim = document.getElementById("scrim");
+  var menuBtn = document.getElementById("menuBtn");
+  var themeBtn = document.getElementById("themeBtn");
+  var themeLabel = document.getElementById("themeLabel");
+  var themeIcon = document.getElementById("themeIcon");
+  var printBtn = document.getElementById("printBtn");
+  var backtop = document.getElementById("backtop");
+  var progressBar = document.getElementById("progressBar");
+  var tocSearch = document.getElementById("tocSearch");
+  var navEmpty = document.getElementById("navEmpty");
+
+  function safeStorageGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function safeStorageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* file:// may block */ }
+  }
+
+  /* Theme */
+  var savedTheme = safeStorageGet("fw-manual-theme");
+  if (savedTheme === "dark" || savedTheme === "light") {
+    root.setAttribute("data-theme", savedTheme);
+  }
+  function syncThemeUI() {
+    var dark = root.getAttribute("data-theme") === "dark";
+    themeLabel.textContent = dark ? "日间" : "夜间";
+    themeIcon.textContent = dark ? "☀" : "◐";
+    themeBtn.setAttribute("aria-label", dark ? "切换到日间主题" : "切换到夜间主题");
+  }
+  syncThemeUI();
+  themeBtn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    safeStorageSet("fw-manual-theme", next);
+    syncThemeUI();
+  });
+
+  /* Mobile nav */
+  function closeNav() {
+    body.classList.remove("nav-open");
+    menuBtn.setAttribute("aria-expanded", "false");
+  }
+  function openNav() {
+    body.classList.add("nav-open");
+    menuBtn.setAttribute("aria-expanded", "true");
+  }
+  menuBtn.addEventListener("click", function () {
+    if (body.classList.contains("nav-open")) closeNav(); else openNav();
+  });
+  scrim.addEventListener("click", closeNav);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") closeNav();
+  });
+
+  /* Print */
+  printBtn.addEventListener("click", function () { window.print(); });
+
+  /* Copy buttons */
+  document.querySelectorAll(".code-card").forEach(function (card) {
+    var pre = card.querySelector("pre");
+    var button = card.querySelector(".copy-btn");
+    if (!pre || !button) return;
+    button.addEventListener("click", function () {
+      var text = pre.innerText;
+      function done() {
+        var old = button.textContent;
+        button.textContent = "COPIED";
+        setTimeout(function () { button.textContent = old; }, 1400);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+  function fallbackCopy(text, done) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand("copy"); } catch (e) { /* ignore */ }
+    document.body.removeChild(area);
+    done();
+  }
+
+  /* Tabs */
+  document.querySelectorAll("[data-tabs]").forEach(function (tabs) {
+    var buttons = tabs.querySelectorAll(".tab-btn");
+    var panels = tabs.querySelectorAll(".tab-panel");
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        var name = button.getAttribute("data-tab");
+        buttons.forEach(function (b) { b.classList.toggle("active", b === button); });
+        panels.forEach(function (panel) {
+          panel.classList.toggle("active", panel.getAttribute("data-panel") === name);
+        });
+      });
+    });
+  });
+
+  /* Search nav */
+  function filterNav() {
+    var query = tocSearch.value.trim().toLowerCase();
+    var links = document.querySelectorAll("#toc a");
+    var visible = 0;
+    links.forEach(function (link) {
+      var match = query === "" || link.textContent.toLowerCase().indexOf(query) !== -1;
+      link.hidden = !match;
+      if (match) visible += 1;
+    });
+    navEmpty.classList.toggle("show", visible === 0);
+  }
+  if (tocSearch) {
+    tocSearch.addEventListener("input", filterNav);
+    tocSearch.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        var first = document.querySelector("#toc a:not([hidden])");
+        if (first) {
+          first.click();
+          closeNav();
+        }
+      }
+      if (event.key === "Escape") {
+        tocSearch.value = "";
+        filterNav();
+        tocSearch.blur();
+      }
+    });
+  }
+  document.addEventListener("keydown", function (event) {
+    var key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === "k") {
+      event.preventDefault();
+      if (tocSearch) {
+        if (window.innerWidth <= 820) openNav();
+        tocSearch.focus();
+        tocSearch.select();
+      }
+    }
+    if (key === "/" && document.activeElement !== tocSearch &&
+        document.activeElement.tagName !== "INPUT" &&
+        document.activeElement.tagName !== "TEXTAREA") {
+      event.preventDefault();
+      if (window.innerWidth <= 820) openNav();
+      tocSearch.focus();
+    }
+  });
+
+  /* Scrollspy */
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll("#toc a"));
+  var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
+  function setActive(id) {
+    navLinks.forEach(function (link) {
+      var active = link.getAttribute("href") === "#" + id;
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+  }
+  if ("IntersectionObserver" in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      var visible = entries.filter(function (entry) { return entry.isIntersecting; });
+      if (visible.length > 0) {
+        var best = visible.sort(function (a, b) { return b.intersectionRatio - a.intersectionRatio; })[0];
+        setActive(best.target.id);
+      }
+    }, { rootMargin: "-18% 0px -64% 0px", threshold: [0, .1, .3, .6] });
+    sections.forEach(function (section) { observer.observe(section); });
+  }
+  navLinks.forEach(function (link) {
+    link.addEventListener("click", function () { closeNav(); });
+  });
+
+  /* Progress + back top */
+  function updateScroll() {
+    var scrollTop = window.scrollY || document.documentElement.scrollTop;
+    var height = document.documentElement.scrollHeight - window.innerHeight;
+    var ratio = height > 0 ? Math.min(1, Math.max(0, scrollTop / height)) : 0;
+    progressBar.style.width = (ratio * 100).toFixed(2) + "%";
+    backtop.classList.toggle("show", scrollTop > 650);
+  }
+  window.addEventListener("scroll", updateScroll, { passive: true });
+  updateScroll();
+  backtop.addEventListener("click", function () {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  /* Reveal */
+  var reveals = document.querySelectorAll(".reveal");
+  if ("IntersectionObserver" in window) {
+    var revealObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in");
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: .06 });
+    reveals.forEach(function (el) { revealObserver.observe(el); });
+  } else {
+    reveals.forEach(function (el) { el.classList.add("in"); });
+  }
+
+  /* Keyboard: jump to top with Home? keep default */
+  menuBtn.setAttribute("aria-expanded", "false");
+})();
+</script>
+</body>
+</html>

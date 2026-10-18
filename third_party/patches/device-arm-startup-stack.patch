@@ -1,0 +1,33 @@
+Keil (ARM Compiler 5) support patch for cmsis-device-f4.
+Applied automatically by cmake/dependencies.cmake after the pinned checkout.
+
+File: Source/Templates/arm/startup_stm32f407xx.s
+Why:  the CubeMX default main/ISR stack is 1 KB. The GCC path reserves 4 KB via
+      _Min_Stack_Size in projects/stm32f407/stm32f407ve.ld, and this ARM startup
+      file is the one the Keil target assembles (the GCC target assembles
+      Source/Templates/gcc/). Without this the Keil build would run on a quarter
+      of the intended stack, silently.
+Note: Heap_Size is left at the 512 B default. It is unused -- the firmware is
+      built with configSUPPORT_DYNAMIC_ALLOCATION 0 and never calls malloc.
+
+Apply from device-src: git apply ../patches/device-arm-startup-stack.patch
+
+diff --git a/Source/Templates/arm/startup_stm32f407xx.s b/Source/Templates/arm/startup_stm32f407xx.s
+index dcbfbb0..81c058f 100644
+--- a/Source/Templates/arm/startup_stm32f407xx.s
++++ b/Source/Templates/arm/startup_stm32f407xx.s
+@@ -29,7 +29,13 @@
+ ;   <o> Stack Size (in Bytes) <0x0-0xFFFFFFFF:8>
+ ; </h>
+ 
+-Stack_Size      EQU     0x00000400
++; Raised from the CubeMX default of 0x400 to match _Min_Stack_Size in
++; projects/stm32f407/stm32f407ve.ld, so the ARM and GCC toolchains reserve the
++; same amount for the main/ISR stack. This file is only used by the Keil project
++; (the CMake/GNU build assembles Source/Templates/gcc/), and under Keil the
++; linker-provided stack is not used because __user_initial_stackheap below points
++; the C library at these areas -- so this value is what actually applies there.
++Stack_Size      EQU     0x00001000
+ 
+                 AREA    STACK, NOINIT, READWRITE, ALIGN=3
+ Stack_Mem       SPACE   Stack_Size

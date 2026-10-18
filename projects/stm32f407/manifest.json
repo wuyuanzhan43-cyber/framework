@@ -1,0 +1,47 @@
+{
+  "coreLibraries": {
+    "fw_core": ["framework/core/io.c", "framework/core/ring.c"],
+    "fw_protocol": ["framework/components/protocol/protocol.c"],
+    "fw_app": ["framework/app/demo_app.c"]
+  },
+  "firmwareSources": [
+    "framework/ports/stm32f4/gpio.c", "framework/ports/stm32f4/uart.c",
+    "framework/ports/stm32f4/st7735.c", "framework/ports/freertos/runtime.c",
+    "framework/boards/stm32f407ve/board.c", "framework/app/assets/avatar_128x160.c",
+    "projects/stm32f407/main.c", "projects/stm32f407/interrupts.c"
+  ],
+  "vendorSources": [
+    "third_party/device-src/Source/Templates/system_stm32f4xx.c",
+    "third_party/hal-src/Src/stm32f4xx_hal.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_cortex.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_rcc.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_rcc_ex.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_gpio.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_uart.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_spi.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_dma.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_dma_ex.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_flash.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_flash_ex.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_pwr.c",
+    "third_party/hal-src/Src/stm32f4xx_hal_pwr_ex.c",
+    "third_party/freertos-src/tasks.c", "third_party/freertos-src/queue.c",
+    "third_party/freertos-src/list.c"
+  ],
+  "includes": [
+    "framework/include", "framework/components/protocol/include", "framework/app/include",
+    "framework/ports/stm32f4/include", "framework/ports/freertos/include",
+    "framework/boards/stm32f407ve", "projects/stm32f407/config", "third_party/hal-src/Inc",
+    "third_party/device-src/Include", "third_party/cmsis-src/CMSIS/Core/Include",
+    "third_party/freertos-src/include"
+  ],
+  "defines": ["STM32F407xx", "USE_HAL_DRIVER", "FW_STM32_UART_DMA=1"],
+  "gccRuntime": "projects/stm32f407/libc_hooks_gcc.c",
+  "gccPort": "third_party/freertos-src/portable/GCC/ARM_CM4F/port.c",
+  "ac5Port": "third_party/freertos-src/portable/RVDS/ARM_CM4F/port.c",
+  "gccStartup": "third_party/device-src/Source/Templates/gcc/startup_stm32f407xx.s",
+  "keilStartup": "third_party/device-src/Source/Templates/arm/startup_stm32f407xx.s",
+  "keilProject": "projects/stm32f407/stm32f407ve.uvprojx",
+  "keilScatter": "projects/stm32f407/stm32f407ve.sct",
+  "keilPack": "Keil.STM32F4xx_DFP"
+}

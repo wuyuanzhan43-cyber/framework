@@ -1,0 +1,53 @@
+/* ARM Compiler scatter file for STM32F407VET6.
+ *
+ * Mirrors projects/stm32f407/stm32f407ve.ld (the GNU ld script used by the CMake
+ * build) in region addresses and capacities (individual section placement differs):
+ *
+ *   FLASH  0x08000000  512 KB   vector table + .text + .rodata + .data load
+ *   RAM    0x20000000  128 KB   .data + .bss + main/ISR stack + C-library heap
+ *   CCM    0x10000000   64 KB   deliberately unused
+ *
+ * Why an explicit scatter file instead of "Use Memory Layout from Target
+ * Dialog": the size bound on each region turns RAM exhaustion into a hard link
+ * error. STACK and HEAP are ordinary allocated areas in this startup; their
+ * sizes contribute to the region total. The GNU script guards its reserved stack with
+ *   ASSERT(_ebss + _Min_Stack_Size <= _estack, "RAM overflow: ...")
+ *
+ * IMPORTANT -- where the stack actually lives
+ * The CMSIS startup file shipped with this project
+ * (third_party/device-src/Source/Templates/arm/startup_stm32f407xx.s) allocates
+ * its own STACK and HEAP areas:
+ *     Stack_Size EQU 0x00001000   (4 KB, applied by our tracked startup patch)
+ *     Heap_Size  EQU 0x00000200   (512 B)
+ * and implements __user_initial_stackheap to point the C library at them. Those
+ * areas are placed here by .ANY (+RW +ZI) inside RW_IRAM1, and __initial_sp in
+ * the vector table therefore resolves to the top of that startup STACK area.
+ *
+ * ARM_LIB_STACK is intentionally NOT used: it only applies to scatter files that
+ * rely on the linker-provided stack, and defining it here would reserve 4 KB that
+ * nothing reads. The C library heap is
+ * likewise unused because the firmware is built with configSUPPORT_DYNAMIC_
+ * ALLOCATION 0 and never calls malloc -- it is 512 B of dead weight kept only
+ * because the vendor startup requests it.
+ *
+ * Both builds reserve 4 KB for the main/ISR stack, in addition to task stacks.
+ * The GNU build sets _Min_Stack_Size = 0x1000 and assembles its own GNU startup.
+ * Keil uses third_party/patches/device-arm-startup-stack.patch, applied during
+ * CMake dependency setup. Maintain that patch when changing the Keil stack size.
+ *
+ * CCM is intentionally absent from the load regions: the design keeps
+ * DMA-capable buffers in main SRAM because DMA cannot reach CCM on STM32F4.
+ */
+
+LR_IROM1 0x08000000 0x00080000 {          ; load region bounded to 512 KB Flash
+  ER_IROM1 0x08000000 0x00080000 {        ; exec region, same addresses
+    *.o (RESET, +First)                   ; vector table must come first
+    *(InRoot$$Sections)                   ; __main, scatter-load and lib glue
+    .ANY (+RO)                            ; all code and read-only data
+  }
+
+  RW_IRAM1 0x20000000 0x00020000 {        ; 128 KB, bounded so overflow is fatal
+    .ANY (+RW +ZI)                        ; .data, .bss, startup STACK + HEAP,
+                                          ; FreeRTOS statics and task stacks
+  }
+}

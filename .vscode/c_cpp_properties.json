@@ -1,0 +1,7 @@
+{
+  "version": 4,
+  "configurations": [
+    {"name":"Host GCC","compilerPath":"gcc","compileCommands":"${workspaceFolder}/build/host-debug/compile_commands.json","cStandard":"c11"},
+    {"name":"STM32F407 ARM GCC","compilerPath":"arm-none-eabi-gcc","compileCommands":"${workspaceFolder}/build/f407-debug/compile_commands.json","cStandard":"c11"}
+  ]
+}
